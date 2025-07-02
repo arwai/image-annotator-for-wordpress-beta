@@ -1,0 +1,477 @@
+/**
+ * ARWAI Image Annotator - v2 (Simple Viewer)
+ *
+ * Frontend public styles for the new simple image viewer.
+ */
+
+/* ==========================================================================
+   1. Base & Global Styles
+   ========================================================================== */
+
+:root {
+    --annotation-label-base-background-color: #fff;
+    --annotation-label-base-font-color: #000;
+    --annotation-label-tagged-background-color: #00a4cb;
+    --annotation-label-tagged-font-color: white;
+    --annotation-label-important-background-color: #ff0000;
+    --annotation-label-important-font-color: white;
+    --annotation-label-selected-background-color: #fff000;
+    --annotation-label-selected-font-color: #000;
+}
+
+/* ==========================================================================
+   2. Main Viewer Layout
+   ========================================================================== */
+
+.arwai-simple-viewer-container2 {
+    width: 100%;
+    display: flex;
+    flex-direction: row;
+    justify-content: center;
+    flex-wrap: nowrap;
+    /* Let content determine height, but stretch children to be equal height */
+    /* align-items: stretch; */
+}
+
+.arwai-simple-viewer-container3 {
+    flex: 3;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+#arwai-simple-viewer-main {
+    position: relative;
+    flex-grow: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    /* Set a maximum vertical limit for the viewer */
+    max-height: 85vh;
+    min-height: 400px; /* Prevents it from getting too small */
+}
+
+#arwai-simple-viewer-sidebar {
+    flex: 1;
+    min-width: 300px;
+    max-width: 350px;
+    background-color: #f4f4f4;
+    overflow-y: auto;
+    border-left: 1px solid #ddd;
+    /* Height is handled by 'align-items: stretch' on the parent */
+}
+
+
+/* ==========================================================================
+   3. Slick Slider & Navigation
+   ========================================================================== */
+
+.arwai-slick-slider {
+    width: 100%;
+    height: 100%;
+}
+
+/* THIS IS THE FIX: Ensure the entire Slick Slider structure has full height */
+.slick-list,
+.slick-track,
+.slick-slide,
+.slick-slide > div { /* Target Slick's wrapper div inside the slide */
+    height: 100%;
+}
+
+.slick-track {
+  display: flex;
+  align-items: baseline!important; /* Aligns all images to the bottom */
+} 
+.arwai-slick-slider .slick-slide {
+    display: flex;
+    align-items: center; /* This vertically centers the content */
+    justify-content: center;
+}
+
+.arwai-slick-slide-wrapper {
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    width: 100%;
+    height: 100%;
+}
+
+.arwai-slick-slide-wrapper img {
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+}
+
+.arwai-simple-viewer-nav {
+    position: absolute;
+    bottom: 1rem;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 10;
+    background: rgba(0, 0, 0, 0.5);
+    border-radius: 30px;
+    padding: 0.25rem 0.5rem;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    backdrop-filter: blur(5px);
+}
+
+.arwai-simple-viewer-nav button {
+    background: transparent;
+    border: none;
+    color: white;
+    cursor: pointer;
+    border-radius: 50%;
+    width: 30px;
+    height: 30px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background-color 0.2s;
+}
+
+.arwai-simple-viewer-nav button:hover {
+    background-color: rgba(255, 255, 255, 0.2);
+}
+
+.arwai-simple-counter {
+    color: white;
+    font-size: 1rem;
+    margin: 0 1rem;
+}
+/* ==========================================================================
+   4. Thumbnail Strip
+   ========================================================================== */
+
+.arwai-simple-viewer-strip-container {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.5rem 0;
+    background: #f8f9fa;
+}
+
+#arwai-simple-viewer-reference-strip {
+    display: flex;
+    overflow-x: auto;
+    padding: 5px 0;
+    white-space: nowrap;
+    scrollbar-width: none; /* Firefox */
+}
+
+#arwai-simple-viewer-reference-strip::-webkit-scrollbar {
+    display: none; /* Chrome, Safari */
+}
+
+.arwai-simple-thumb {
+    height: 80px;
+    margin: 0 5px;
+    border: 3px solid transparent;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.2s;
+    flex-shrink: 0;
+}
+
+.arwai-simple-thumb:hover {
+    border-color: #00a4cb;
+}
+
+.arwai-simple-thumb.active {
+    transform: scale(1.1);
+    border-color: var(--annotation-label-selected-background-color);
+}
+
+.arwai-simple-strip-scroll-left,
+.arwai-simple-strip-scroll-right {
+    flex-shrink: 0;
+    background: #e9ecef;
+    border: 1px solid #ccc;
+    cursor: pointer;
+    padding: 10px 5px;
+    z-index: 1;
+}
+
+/* ==========================================================================
+   5. Sidebar & Annotation List
+   ========================================================================== */
+
+.arwai-simple-viewer-buttons {
+    padding: 0.5rem;
+    display: flex;
+    justify-content: center;
+    gap: 0;
+    border-bottom: 1px solid #ddd;
+    background: #fff;
+}
+
+.arwai-simple-viewer-buttons button {
+    background: transparent;
+    cursor: pointer;
+    border: 1px solid #ccc;
+    padding: 8px 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background-color 0.2s;
+    gap: 0.5rem;
+}
+
+.arwai-simple-viewer-buttons button:first-child {
+    border-radius: 30px 0 0 30px;
+    border-right: none;
+}
+
+.arwai-simple-viewer-buttons button:last-child {
+    border-radius: 0 30px 30px 0;
+    border-left: none;
+}
+
+.arwai-simple-viewer-buttons button:hover {
+    background-color: #e9ecef;
+}
+
+#arwai-simple-annotation-list h3 {
+    text-align: center;
+    padding: 1rem;
+    font-size: 1em;
+    margin: 0;
+}
+
+#arwai-annotation-list {
+    list-style: none;
+    padding: 0.5em;
+    margin: 0;
+}
+
+#arwai-annotation-list > li {
+    background: #fff;
+    border: 1px solid #e0e0e0;
+    border-radius: 4px;
+    padding: 0.5em;
+    margin-bottom: 0.5em;
+    position: relative;
+    padding-left: 2em;
+}
+
+#arwai-annotation-list > li.is-highlighted {
+    border-left: 4px solid var(--annotation-label-selected-background-color);
+}
+
+.arwai-anno-list-header span {
+    position: absolute;
+    top: 1em;
+    left: 1em;
+    width: 1.8em;
+    height: 1.8em;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.7em;
+    background: #f0f0f0;
+    border-radius: 50%;
+    transform: translate(-50%, -50%);
+}
+
+.arwai-anno-list-body,
+.arwai-anno-list-footer {
+    padding-left: 1em;
+}
+
+.arwai-anno-list-comments {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.arwai-anno-list-comment-item {
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid #f4f4f4;
+}
+.arwai-anno-list-comment-item:last-child {
+    border-bottom: none;
+}
+
+.arwai-anno-list-comment-meta {
+    font-size: 0.7em;
+    color: #6c757d;
+}
+
+.arwai-anno-list-footer {
+    font-size: 0.8em;
+    padding-top: 0.5em;
+    margin-top: 0.5em;
+    border-top: 1px solid #f4f4f4;
+}
+
+.arwai-anno-list-tag {
+    display: inline-block;
+    background-color: #e9ecef;
+    border-radius: 4px;
+    padding: 3px 8px;
+    margin: 2px;
+    font-size: 0.9em;
+    border: 1px solid #d1d5d8;
+}
+
+/* ==========================================================================
+   6. SINGLE ANNOTATION DISPLAY (MOBILE)
+   ========================================================================== */
+
+#arwai-single-annotation-container {
+    display: none; /* Hidden by default */
+    padding: 1.5em 1em 1em 1em;
+    margin: 1em;
+    border: 2px solid #333;
+    border-radius: 8px;
+    background: #fff;
+    position: relative;
+}
+
+#arwai-single-annotation-container h3 {
+    display: none; /* Title is redundant on mobile */
+}
+
+#arwai-single-annotation {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.arwai-anno-list-header-single {
+    position: absolute;
+    top: 0;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 2.5em;
+    height: 2.5em;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.8em;
+    background: #fff;
+    border: 2px solid #333;
+    border-radius: 50%;
+}
+
+.arwai-anno-list-body-single ul,
+.arwai-anno-list-footer-single ul {
+    list-style: none;
+    padding-left: 0;
+}
+
+#arwai-single-annotation-container.is-tagged { border-color: var(--annotation-label-tagged-background-color); }
+#arwai-single-annotation-container.is-important { border-color: var(--annotation-label-important-background-color); }
+
+/* ==========================================================================
+   7. OpenSeadragon & Annotorious Overrides
+   ========================================================================== */
+#arwai-osd-modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background-color: rgba(0, 0, 0, 0.9);
+    z-index: 9999;
+    margin: 0;
+}
+
+#arwai-osd-viewer { width: 100%; height: 100%; }
+
+.arwai-osd-toolbar-container {
+    position: absolute;
+    bottom: 30px;
+    left: 50%;
+    transform: translateX(-50%);
+    padding: 0.25rem 0.5rem;
+    backdrop-filter: blur(5px);
+    background: rgba(0, 0, 0, 0.5);
+    border-radius: 50px;
+    z-index: 10000;
+}
+
+#arwai-openseadragon-toolbar button {
+    background: transparent;
+    padding: .5rem;
+    border: none;
+    color: white;
+    cursor: pointer;
+    border-radius: 50%;
+    width: 42px;
+    height: 42px;
+}
+
+#arwai-openseadragon-toolbar button:hover {
+    background-color: rgba(255, 255, 255, 0.2);
+}
+
+/* Annotorious label styles */
+.a9s-annotation foreignObject {
+    overflow: visible;
+    width: 1px;
+    height: 1px;
+}
+
+.a9s-annotation foreignObject label {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    width: 1.2rem;
+    height: 1.2rem;
+    padding: 4px;
+    border-radius: 50%;
+    transform: translateY(-50%) translateX(-50%);
+    font-size: 12px;
+    white-space: nowrap;
+    background-color: var(--annotation-label-base-background-color);
+    color: var(--annotation-label-base-font-color);
+    border: 1px solid #333;
+}
+
+.a9s-annotation.tagged .a9s-inner { stroke: var(--annotation-label-tagged-background-color); }
+.a9s-annotation.important .a9s-inner { stroke: var(--annotation-label-important-background-color); }
+.a9s-annotation.selected .a9s-inner { stroke: var(--annotation-label-selected-background-color) !important; }
+
+.a9s-annotation.tagged foreignObject label { background: var(--annotation-label-tagged-background-color); color: var(--annotation-label-tagged-font-color); border:none; }
+.a9s-annotation.important foreignObject label { background: var(--annotation-label-important-background-color); color: var(--annotation-label-important-font-color); border:none; }
+.a9s-annotation.selected foreignObject label { background: var(--annotation-label-selected-background-color) !important; color: var(--annotation-label-selected-font-color) !important; border:none; }
+
+/* ==========================================================================
+   8. MOBILE & RESPONSIVE STYLES
+   ========================================================================== */
+
+@media (max-width: 767px) {
+    /* Make the main layout vertical */
+    .arwai-simple-viewer-container2 {
+        flex-direction: column;
+        height: auto; /* Let content determine height */
+    }
+
+    /* Viewer takes full width */
+    .arwai-simple-viewer-container3 {
+        width: 100%;
+        height: 60vh; /* Set a viewport height for the image */
+    }
+
+    /* Sidebar also takes full width and appears below */
+    #arwai-simple-viewer-sidebar {
+        width: 100%;
+        max-width: 100%;
+        height: auto;
+        border-left: none;
+        border-top: 2px solid #ddd;
+    }
+
+    /* Show the single annotation container on mobile */
+    #arwai-single-annotation-container {
+        display: block;
+    }
+
+    /* Hide the full annotation list on mobile to save space */
+    #arwai-simple-annotation-list {
+        display: none;
+    }
+}

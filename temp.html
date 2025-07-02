@@ -1,0 +1,40 @@
+<div class='arwai-simple-viewer-container'>
+    <div class='arwai-simple-viewer'>   
+        <div class='arwai-simple-viewer-main'>
+            <div class='arwai-slick-slider'>
+                " . $slides_html . "
+            </div>
+            <div class='arwai-simple-viewer-nav'>
+                <button class='arwai-simple-prev'><span data-feather='arrow-left'></span></button>
+                <span class='arwai-simple-counter'><span class='arwai-simple-current-index'>1</span> / " . count($image_ids) . "</span>
+                <button class='arwai-simple-next'><span data-feather='arrow-right'></span></button>
+            </div>
+        </div>
+
+        <div class='arwai-simple-viewer-sidebar'>
+            <div class='arwai-simple-annotation-list'>
+                <h3>Annotations</h3>
+                <ul id='arwai-annotation-list'>
+                </ul>
+            </div>
+        </div>
+    </div>
+    <div class='arwai-simple-viewer-buttons'>
+            <button id='arwai-toggle-annotations' class='arwai-simple-toggle' title='Toggle Annotations'>
+                <span data-feather='eye'></span><span data-feather='eye-off' style='display:none;'>
+                </span><label>Hide/Show Annotations</label>
+            </button>
+            <button id='arwai-launch-osd' class='arwai-deep-zoom-button' title='Deep Zoom'>
+                <span data-feather='maximize-2'></span>
+                <label>Open in Deep Zoom/editing</label>
+            </button>
+    </div>
+
+    <div class='arwai-simple-viewer-strip-container'>
+        <button class='arwai-simple-strip-scroll-left'><span data-feather='chevron-left'></span></button>
+        <div id='arwai-simple-viewer-reference-strip'>
+            " . $thumbnails_html . "
+        </div>
+        <button class='arwai-simple-strip-scroll-right'><span data-feather='chevron-right'></span></button>
+    </div>
+</div>
