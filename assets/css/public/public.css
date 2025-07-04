@@ -260,28 +260,17 @@
     border: 1px solid #e0e0e0;
     border-radius: 4px;
     padding: 0.5em;
-    margin-bottom: 0.5em;
+    margin-bottom: 1.1rem;
     position: relative;
-    padding: 1.5rem;
+    padding: 1rem;
     text-align: center;
 }
-
-#arwai-annotation-list > li.is-highlighted  {
-    border: 2px solid var(--annotation-label-selected-background-color);
-
-}
-
-
-#arwai-annotation-list > li.is-highlighted > div > div > span {
-    background: var(--annotation-label-selected-background-color);
-}
-
 
 
 .arwai-anno-list-header span {
     position: absolute;
     top: -1px;
-    left: -1px;
+    left: 50%;
     width: 1.8em;
     height: 1.8em;
     padding: 2px;
@@ -297,7 +286,7 @@
 .arwai-anno-list-body ul,
 .arwai-anno-list-footer {
     list-style: none;
-
+    padding: 0;
 }
 
 .arwai-anno-list-comments {
@@ -333,10 +322,13 @@
     border-radius: 4px;
     padding: 3px 8px;
     margin: 2px;
-    font-size: 0.9em;
+    font-size: 0.9rem;
     border: 1px solid #d1d5d8;
 }
 
+.arwai-anno-list-item div div.arwai-anno-list-body ul.arwai-anno-list-comments li.arwai-anno-list-comment-item p {
+    margin: 0.2rem;
+}
 /* ==========================================================================
    6. SINGLE ANNOTATION DISPLAY (MOBILE)
    ========================================================================== */
@@ -349,9 +341,9 @@
     border-radius: 8px;
     background: #fff;
     position: relative;
-    box-shadow: 
+    /* box-shadow: 
         0 1px 3px rgba(0, 0, 0, 0.24),
-        0 4px 12px rgba(0, 0, 0, 0.36);
+        0 4px 12px rgba(0, 0, 0, 0.36); */
 }
 
 #arwai-single-annotation-container h3 {
@@ -362,6 +354,15 @@
     list-style: none;
     padding: 0;
     margin: 0;
+
+}
+
+#arwai-single-annotation > li {
+    text-align: center;
+}
+
+ul#arwai-single-annotation li div.arwai-anno-list-body ul li p{
+    margin: 0.2rem;
 }
 
 .arwai-anno-list-header-single {
@@ -375,9 +376,7 @@
     align-items: center;
     justify-content: center;
     font-size: 0.8em;
-    background: var(--annotation-label-selected-background-color);
-    border:  var(--annotation-label-selected-background-color);
-;
+    background: white;
     border-radius: 50%;
 }
 
@@ -387,23 +386,78 @@
     padding-left: 0;
 }
 
-#arwai-single-annotation-container.is-tagged { border-color: var(--annotation-label-tagged-background-color); }
-#arwai-single-annotation-container.is-important { border-color: var(--annotation-label-important-background-color); }
 
 
-#arwai-simple-annotation-list.is-tagged > div > ul >li { border-color: var(--annotation-label-tagged-background-color) !important; }
-#arwai-simple-annotation-list.is-important { border-color: var(--annotation-label-important-background-color); }
+/**
+**  MOBILE SINGLE ANNOTATION STYLE FORMATTER
+**/ 
+
+/* single annotation (mobile pop-up) border color */
+#arwai-single-annotation-container.is-tagged { 
+    border-color: var(--annotation-label-tagged-background-color); 
+}
+#arwai-single-annotation-container.is-important { 
+    border-color: var(--annotation-label-important-background-color); 
+}
+
+/* single annotation (mobile pop-up) id number circle color */
+#arwai-single-annotation-container.is-tagged ul#arwai-single-annotation li div.arwai-anno-list-header-single { 
+    border: 2px solid var(--annotation-label-tagged-background-color); 
+}
+#arwai-single-annotation-container.is-important ul#arwai-single-annotation li div.arwai-anno-list-header-single { 
+    border: 2px solid var(--annotation-label-important-background-color); 
+}
+
+/**
+**  ANNOTATION LIST STYLE FORMATTER
+**/
+
+/* selected annotation from list- border color */
+
+#arwai-annotation-list > li.is-highlighted  { 
+    border: 2px solid var(--annotation-label-base-font-color);
+    box-shadow: var(--wp--preset--shadow--natural);
+    z-index: 1000;
+}
+
+#arwai-simple-viewer-sidebar div#arwai-simple-annotation-list ul#arwai-annotation-list.is-tagged li.is-highlighted {
+    border: 2px solid var(--annotation-label-tagged-background-color);
+}
+#arwai-simple-viewer-sidebar div#arwai-simple-annotation-list ul#arwai-annotation-list.is-important li.is-highlighted {
+    border: 2px solid var(--annotation-label-important-background-color);
+}
+
+/* selected annotation from list- id circle color */
+
+#arwai-annotation-list > li.is-highlighted > div > div > span {
+    border: 2px solid var(--annotation-label-base-font-color);
+    background: var(--annotation-label-base-background-color);
+}
+
+#arwai-simple-viewer-sidebar div#arwai-simple-annotation-list ul#arwai-annotation-list.is-tagged li.is-highlighted div.arwai-anno-list-item div.arwai-anno-list-header span {
+    border: 2px solid var(--annotation-label-tagged-background-color); 
+
+}
+#arwai-simple-viewer-sidebar div#arwai-simple-annotation-list ul#arwai-annotation-list.is-important li.is-highlighted div.arwai-anno-list-item div.arwai-anno-list-header span {
+    border: 2px solid var(--annotation-label-important-background-color); 
+
+}
 
 
 /* Style for the icon inside the button */
 #arwai-close-single-annotation .feather-x {
     display: flex;
     justify-content: center;
-    height: 1.5rem;
-    width: 1.5rem;
+    height: 1.2rem;
+    width: 1.2rem;
 }
-
-
+#arwai-close-single-annotation.arwai-btn {
+    float: right;
+}
+#arwai-close-single-annotation.arwai-btn:hover {
+    /* transform: scale(0.92); */
+    background-color: #00a4cb;
+}
 
 /* ==========================================================================
    7. OpenSeadragon & Annotorious Overrides
@@ -473,11 +527,20 @@
 
 .a9s-annotation.tagged .a9s-inner { stroke: var(--annotation-label-tagged-background-color); }
 .a9s-annotation.important .a9s-inner { stroke: var(--annotation-label-important-background-color); }
-.a9s-annotation.selected .a9s-inner { stroke: var(--annotation-label-selected-background-color) !important; }
+.a9s-annotation.selected .a9s-inner { 
+    stroke: var(--annotation-label-selected-background-color) !important; 
+    box-shadow: var(--wp--preset--shadow--natural);
+}
 
 .a9s-annotation.tagged foreignObject label { background: var(--annotation-label-tagged-background-color); color: var(--annotation-label-tagged-font-color); border:none; }
 .a9s-annotation.important foreignObject label { background: var(--annotation-label-important-background-color); color: var(--annotation-label-important-font-color); border:none; }
-.a9s-annotation.selected foreignObject label { background: var(--annotation-label-selected-background-color) !important; color: var(--annotation-label-selected-font-color) !important; border:none; }
+.a9s-annotation.selected foreignObject label { 
+    /* background: var(--annotation-label-selected-background-color) !important;  */
+    /* color: var(--annotation-label-selected-font-color) !important;  */
+    border: 1px solid var(--annotation-label-selected-background-color); 
+    box-shadow: var(--wp--preset--shadow--natural);
+
+}
 
 /* ==========================================================================
    8. MOBILE & RESPONSIVE STYLES
@@ -509,7 +572,7 @@
     #arwai-single-annotation-container {
         display: block;
         position: absolute;
-        /* top:7.5rem; */
+        top:10rem;
         /* left: 0; */
         /* transform: translate(-50%, -50%); */
         float: left;

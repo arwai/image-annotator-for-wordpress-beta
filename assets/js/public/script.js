@@ -221,7 +221,19 @@ jQuery(document).ready(function($) {
         const idBody = annotation.body.find(b => b.purpose === 'arwai-AnnotationID');
         const annotationId = idBody ? idBody.value : 'N/A';
         const tagBodies = annotation.body.filter(b => b.purpose === 'tagging');
-        const tagsHtml = tagBodies.length > 0 ? tagBodies.map(body => `<span class="arwai-anno-list-tag">${body.value}</span>`).join(' ') : '<em>n/a</em>';
+
+    // 1. Get the tagLinks object, just like in your other function.
+    const tagLinks = anno_options.tagLinks || {};
+
+    // 2. Use the same logic to generate linked tags.
+    const tagsHtml = tagBodies.length > 0 ? tagBodies.map(body => {
+        const tagName = body.value;
+        return tagLinks[tagName] 
+            ? `<button class="arwai-anno-list-tag"><a href="${tagLinks[tagName]}" class="arwai-anno-list-tag-link">${tagName}</a></button>` 
+            : `<span class="arwai-anno-list-tag">${tagName}</span>`;
+    }).join(' ') : '<em>n/a</em>';
+
+
         const commentBodies = annotation.body.filter(b => b.purpose === 'commenting' || b.purpose === 'replying');
         let commentsHtml = '<p><em>No comments.</em></p>';
         if (commentBodies.length > 0) {
@@ -230,7 +242,6 @@ jQuery(document).ready(function($) {
                 return `<li><p>${body.value}</p><small>By: ${creatorName}</small></li>`;
             }).join('') + `</ul>`;
         }
-        // Add a close button to the header.
         const newHtml = `
             <li>
                 <div class="arwai-anno-list-header-single">
@@ -239,11 +250,11 @@ jQuery(document).ready(function($) {
                 </div>
                 <div class="arwai-anno-list-body">${commentsHtml}</div>
                 <div class="arwai-anno-list-footer"><strong>Tags:</strong> ${tagsHtml}</div>
-                <div style='float: right;'>
+                <span>
                     <button id="arwai-close-single-annotation" class="arwai-btn" title="Close">
                         <i data-feather="x"></i>    
                     </button>
-                </div>  
+                </span>  
 
             </li>
           
