@@ -22,6 +22,12 @@
 /* ==========================================================================
    2. Main Viewer Layout
    ========================================================================== */
+/* .arwai-simple-viewer {
+    padding:1rem 0;
+
+} */
+
+
 
 .arwai-simple-viewer-container2 {
     width: 100%;
@@ -29,8 +35,8 @@
     flex-direction: row;
     justify-content: center;
     flex-wrap: nowrap;
-    /* Let content determine height, but stretch children to be equal height */
-    /* align-items: stretch; */
+    max-height: 90vh;
+    min-height: 70vh;
 }
 
 .arwai-simple-viewer-container3 {
@@ -38,6 +44,7 @@
     min-width: 0;
     display: flex;
     flex-direction: column;
+    /* padding: 1.5rem; */
 }
 
 #arwai-simple-viewer-main {
@@ -49,12 +56,13 @@
     /* Set a maximum vertical limit for the viewer */
     max-height: 85vh;
     min-height: 400px; /* Prevents it from getting too small */
+    padding: 1.5rem;
 }
 
 #arwai-simple-viewer-sidebar {
     flex: 1;
     min-width: 300px;
-    max-width: 350px;
+    max-width: 450px;
     background-color: #f4f4f4;
     overflow-y: auto;
     border-left: 1px solid #ddd;
@@ -81,8 +89,8 @@
 
 .slick-track {
   display: flex;
-  align-items: baseline!important; /* Aligns all images to the bottom */
 } 
+
 .arwai-slick-slider .slick-slide {
     display: flex;
     align-items: center; /* This vertically centers the content */
@@ -91,7 +99,7 @@
 
 .arwai-slick-slide-wrapper {
     display: flex;
-    align-items: flex-end;
+    /* align-items: center; */
     justify-content: center;
     width: 100%;
     height: 100%;
@@ -141,6 +149,7 @@
     font-size: 1rem;
     margin: 0 1rem;
 }
+
 /* ==========================================================================
    4. Thumbnail Strip
    ========================================================================== */
@@ -149,7 +158,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    padding: 0.5rem 0;
+    /* padding: 1rem; */
     background: #f8f9fa;
 }
 
@@ -253,19 +262,29 @@
     padding: 0.5em;
     margin-bottom: 0.5em;
     position: relative;
-    padding-left: 2em;
+    padding: 1.5rem;
+    text-align: center;
 }
 
-#arwai-annotation-list > li.is-highlighted {
-    border-left: 4px solid var(--annotation-label-selected-background-color);
+#arwai-annotation-list > li.is-highlighted  {
+    border: 2px solid var(--annotation-label-selected-background-color);
+
 }
+
+
+#arwai-annotation-list > li.is-highlighted > div > div > span {
+    background: var(--annotation-label-selected-background-color);
+}
+
+
 
 .arwai-anno-list-header span {
     position: absolute;
-    top: 1em;
-    left: 1em;
+    top: -1px;
+    left: -1px;
     width: 1.8em;
     height: 1.8em;
+    padding: 2px;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -275,9 +294,10 @@
     transform: translate(-50%, -50%);
 }
 
-.arwai-anno-list-body,
+.arwai-anno-list-body ul,
 .arwai-anno-list-footer {
-    padding-left: 1em;
+    list-style: none;
+
 }
 
 .arwai-anno-list-comments {
@@ -289,6 +309,7 @@
 .arwai-anno-list-comment-item {
     padding-bottom: 0.5rem;
     border-bottom: 1px solid #f4f4f4;
+    font-size: 1.2rem;
 }
 .arwai-anno-list-comment-item:last-child {
     border-bottom: none;
@@ -328,6 +349,9 @@
     border-radius: 8px;
     background: #fff;
     position: relative;
+    box-shadow: 
+        0 1px 3px rgba(0, 0, 0, 0.24),
+        0 4px 12px rgba(0, 0, 0, 0.36);
 }
 
 #arwai-single-annotation-container h3 {
@@ -351,8 +375,9 @@
     align-items: center;
     justify-content: center;
     font-size: 0.8em;
-    background: #fff;
-    border: 2px solid #333;
+    background: var(--annotation-label-selected-background-color);
+    border:  var(--annotation-label-selected-background-color);
+;
     border-radius: 50%;
 }
 
@@ -364,6 +389,21 @@
 
 #arwai-single-annotation-container.is-tagged { border-color: var(--annotation-label-tagged-background-color); }
 #arwai-single-annotation-container.is-important { border-color: var(--annotation-label-important-background-color); }
+
+
+#arwai-simple-annotation-list.is-tagged > div > ul >li { border-color: var(--annotation-label-tagged-background-color) !important; }
+#arwai-simple-annotation-list.is-important { border-color: var(--annotation-label-important-background-color); }
+
+
+/* Style for the icon inside the button */
+#arwai-close-single-annotation .feather-x {
+    display: flex;
+    justify-content: center;
+    height: 1.5rem;
+    width: 1.5rem;
+}
+
+
 
 /* ==========================================================================
    7. OpenSeadragon & Annotorious Overrides
@@ -448,19 +488,19 @@
     .arwai-simple-viewer-container2 {
         flex-direction: column;
         height: auto; /* Let content determine height */
+        max-height: 100%;
     }
 
     /* Viewer takes full width */
     .arwai-simple-viewer-container3 {
         width: 100%;
-        height: 60vh; /* Set a viewport height for the image */
+        height: 70vh; /* Set a viewport height for the image */
     }
 
     /* Sidebar also takes full width and appears below */
     #arwai-simple-viewer-sidebar {
         width: 100%;
         max-width: 100%;
-        height: auto;
         border-left: none;
         border-top: 2px solid #ddd;
     }
@@ -468,10 +508,31 @@
     /* Show the single annotation container on mobile */
     #arwai-single-annotation-container {
         display: block;
+        position: absolute;
+        /* top:7.5rem; */
+        /* left: 0; */
+        /* transform: translate(-50%, -50%); */
+        float: left;
+        z-index: 1000;
+        width:80%;
+        background: rgba(255, 255 , 255, 0.5);
+        backdrop-filter: blur(15px);
     }
 
     /* Hide the full annotation list on mobile to save space */
     #arwai-simple-annotation-list {
         display: none;
     }
+
+
+
+    .arwai-osd-toolbar-container {
+        width: 100%;
+    }
 }
+
+
+
+
+
+
