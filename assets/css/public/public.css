@@ -392,7 +392,12 @@ ul#arwai-single-annotation li div.arwai-anno-list-body ul li p{
 **  MOBILE SINGLE ANNOTATION STYLE FORMATTER
 **/ 
 
+
+
 /* single annotation (mobile pop-up) border color */
+#arwai-single-annotation-container {
+    border-color: var(--annotation-label-base-font-color);
+}
 #arwai-single-annotation-container.is-tagged { 
     border-color: var(--annotation-label-tagged-background-color); 
 }
@@ -401,6 +406,9 @@ ul#arwai-single-annotation li div.arwai-anno-list-body ul li p{
 }
 
 /* single annotation (mobile pop-up) id number circle color */
+#arwai-single-annotation-container ul#arwai-single-annotation li div.arwai-anno-list-header-single { 
+    border: 2px solid var(--annotation-label-base-font-color); 
+}
 #arwai-single-annotation-container.is-tagged ul#arwai-single-annotation li div.arwai-anno-list-header-single { 
     border: 2px solid var(--annotation-label-tagged-background-color); 
 }
@@ -570,7 +578,7 @@ ul#arwai-single-annotation li div.arwai-anno-list-body ul li p{
 
     /* Show the single annotation container on mobile */
     #arwai-single-annotation-container {
-        display: block;
+        display: none;
         position: absolute;
         top:10rem;
         /* left: 0; */

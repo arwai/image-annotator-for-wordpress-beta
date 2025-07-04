@@ -579,74 +579,92 @@ jQuery(document).ready(function($) {
         scrollRightButton.toggle(canScroll);
     }
 
+// --- Main Initialization Logic ---
+// Check the number of images to decide which mode to use.
+if (images.length > 1) {
 
-    // --- Main Initialization Logic ---
-    // Check the number of images to decide which mode to use.
-    if (images.length > 1) {
+    // --- SLIDER MODE (for multiple images) ---
 
-        // --- SLIDER MODE (for multiple images) ---
-        // Initialize Slick Slider
-        slickSlider.slick({
-            dots: false,
-            arrows: false,
-            infinite: true,
-            speed: 300,
-            slidesToShow: 1,
-            adaptiveHeight: true,
-            swipeToSlide: true,
-            touchThreshold: 7
-        });
+    // 1. Get the target image ID from the URL to determine the starting slide.
+    const urlParams = new URLSearchParams(window.location.search);
+    const targetImageId = urlParams.get('arwai_image_id');
+    let initialSlideIndex = 0; // Default to the first slide (index 0).
 
-        // Event handler for AFTER a slide changes
-        slickSlider.on('afterChange', function(event, slick, newIndex) {
-            currentIndex = newIndex;
-            currentIndexSpan.text(currentIndex + 1);
-            thumbnails.removeClass('active').eq(currentIndex).addClass('active');
-            if (singleAnnotationContainer.length) singleAnnotationContainer.hide();
-            initSimpleAnnotorious(); // Re-init Annotorious on the new slide
-        });
-
-        // Make buttons control the slider
-        prevButton.on('click', () => slickSlider.slick('slickPrev'));
-        nextButton.on('click', () => slickSlider.slick('slickNext'));
-        
-        // Make thumbnails control the slider
-        strip.on('click', '.arwai-simple-thumb', function() {
-            const newIndex = $(this).data('index');
-            slickSlider.slick('slickGoTo', newIndex);
-        });
-        
-        // Make the left/right scroll buttons control the strip
-        scrollLeftButton.on('click', function() {
-            strip.animate({ scrollLeft: '-=200' }, 300);
-        });
-
-        scrollRightButton.on('click', function() {
-            strip.animate({ scrollLeft: '+=200' }, 300);
-        });
-
-        // Initial setup for slider view
-        updateArrowVisibility();
-        $(window).on('resize', updateArrowVisibility);
-        updateView(0); // Set the initial slide and load Annotorious
-
-        } else {
-
-            // --- SINGLE IMAGE MODE ---
-
-            // Hide slider-specific controls since they are not needed
-            prevButton.hide();
-            nextButton.hide();
-            strip.hide(); // Hides the entire reference strip
-            scrollLeftButton.hide();
-            scrollRightButton.hide();
-            currentIndexSpan.parent().hide(); // Hides the "1 / 1" counter
-            slideNav.hide();
-
-            // Initialize Annotorious directly on the single image
-            initSimpleAnnotorious();
+    if (targetImageId && Array.isArray(images)) {
+        const foundIndex = images.findIndex(image => image.post_id === parseInt(targetImageId, 10));
+        if (foundIndex !== -1) {
+            initialSlideIndex = foundIndex;
         }
+    }
 
+    // 2. Initialize Slick Slider using the 'initialSlide' option.
+    slickSlider.slick({
+        dots: false,
+        arrows: false,
+        infinite: true,
+        speed: 300,
+        slidesToShow: 1,
+        adaptiveHeight: true,
+        swipeToSlide: true,
+        touchThreshold: 7,
+        initialSlide: initialSlideIndex // This reliably sets the starting slide
+    });
+
+    // Event handler for AFTER a slide changes
+    slickSlider.on('afterChange', function(event, slick, newIndex) {
+        currentIndex = newIndex;
+        currentIndexSpan.text(currentIndex + 1);
+        thumbnails.removeClass('active').eq(currentIndex).addClass('active');
+        if (singleAnnotationContainer.length) singleAnnotationContainer.hide();
+        initSimpleAnnotorious(); // Re-init Annotorious on the new slide
+    });
+
+    // Make buttons control the slider
+    prevButton.on('click', () => slickSlider.slick('slickPrev'));
+    nextButton.on('click', () => slickSlider.slick('slickNext'));
+    
+    // Make thumbnails control the slider
+    strip.on('click', '.arwai-simple-thumb', function() {
+        const newIndex = $(this).data('index');
+        slickSlider.slick('slickGoTo', newIndex);
+    });
+    
+    // Make the left/right scroll buttons control the strip
+    scrollLeftButton.on('click', function() {
+        strip.animate({ scrollLeft: '-=200' }, 300);
+    });
+
+    scrollRightButton.on('click', function() {
+        strip.animate({ scrollLeft: '+=200' }, 300);
+    });
+
+    // Initial setup for slider view
+    updateArrowVisibility();
+    $(window).on('resize', updateArrowVisibility);
+
+    // --- NEW FIX ---
+    // Manually set the initial state for the counter and thumbnails to sync with the initial slide.
+    currentIndex = initialSlideIndex;
+    currentIndexSpan.text(currentIndex + 1); // Sync counter
+    thumbnails.removeClass('active').eq(currentIndex).addClass('active'); // Sync active thumbnail
+    initSimpleAnnotorious(); // Initialize annotorious for the correct slide
+
+} else {
+
+    // --- SINGLE IMAGE MODE ---
+
+    // Hide slider-specific controls since they are not needed
+    prevButton.hide();
+    nextButton.hide();
+    strip.hide(); // Hides the entire reference strip
+    scrollLeftButton.hide();
+    scrollRightButton.hide();
+    currentIndexSpan.parent().hide(); // Hides the "1 / 1" counter
+    slideNav.hide();
+
+    // Initialize Annotorious directly on the single image
+    initSimpleAnnotorious();
+}
 
         singleAnnotationContainer.on('click', '#arwai-close-single-annotation', function() {
             // Find out which viewer is active
@@ -726,8 +744,27 @@ jQuery(document).ready(function($) {
     launchOsdButton.on('click', launchOsdViewer);
     osdCloseButton.on('click', closeOsdViewer);
 
+
+    // --- DYNAMIC INITIAL SLIDE LOGIC ---
+    // Get the image ID from the URL query string.
+    const urlParams = new URLSearchParams(window.location.search);
+    const targetImageId = urlParams.get('arwai_image_id');
+
+    let initialSlideIndex = 0; // Default to the first slide (index 0)
+console.log(initialSlideIndex)
+    // If an image ID is present in the URL, find its corresponding index.
+    if (targetImageId && Array.isArray(images)) {
+        // The targetImageId from the URL is a string, so parse it to an integer for comparison.
+        const foundIndex = images.findIndex(image => image.post_id === parseInt(targetImageId, 10));
+
+        // If the image was found in the array, update the initial index.
+        if (foundIndex !== -1) {
+            initialSlideIndex = foundIndex;
+        }
+    }
     // Initial load and setup
-    updateView(0);
+    // updateView(initialSlideIndex);
+
     //initialize reference strip arrows visibility function
     updateArrowVisibility();
       $(window).on('resize', updateArrowVisibility);
