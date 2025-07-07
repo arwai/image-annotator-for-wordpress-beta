@@ -37,3 +37,22 @@
         border-radius: 4px;
 
 }
+
+/* Admin Settings Page */
+.arwai-shortcode-guide {
+    margin-top: 2em;
+}
+.arwai-shortcode-entry {
+    margin-bottom: 1.5em;
+}
+.arwai-shortcode-entry h4 {
+    margin-bottom: 0.25em;
+}
+.arwai-shortcode-entry p {
+    margin-top: 0;
+}
+    .arwai-shortcode-entry code {
+    background-color: #f0f0f1;
+    padding: 0.2em 0.4em;
+    border-radius: 3px;
+}

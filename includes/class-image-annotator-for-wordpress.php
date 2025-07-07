@@ -43,6 +43,7 @@ class Image_Annotator_for_WordPress {
 
         //add_shortcode( 'arwai_annotation_list', array( $this, 'render_annotation_list_shortcode' ) ); //annotation list shortcode
         add_shortcode( 'arwai_single_annotation', array( $this, 'render_single_annotation_shortcode' ) ); //single annotation shortcode
+        add_shortcode( 'arwai_all_tags_list', array( $this, 'render_all_tags_list_shortcode' ) );
 
 
         // AJAX actions
@@ -107,6 +108,7 @@ class Image_Annotator_for_WordPress {
         ?>
         <div class="wrap">
             <h1><?php echo esc_html(get_admin_page_title()); ?></h1>
+            
             <form action="options.php" method="post">
                 <?php
                 settings_fields('arwai_image_annotator_options_group');
@@ -211,6 +213,8 @@ class Image_Annotator_for_WordPress {
         ?>
         <div class="wrap">
             <h1><?php echo esc_html( get_admin_page_title() ); ?></h1>
+
+            ccc
             <form action="options.php" method="post">
                 <?php
                 submit_button( 'Save Settings' );
@@ -219,38 +223,71 @@ class Image_Annotator_for_WordPress {
                 submit_button( 'Save Settings' );
                 ?>
             </form>
+            <div class="arwai-shortcode-guide">
+                <h2><?php _e( 'Shortcode Guide', 'arwai-image-annotator' ); ?></h2>
+                <p><?php _e( 'Use the following shortcodes to place viewer components in your post content.', 'arwai-image-annotator' ); ?></p>
+
+                <div class="arwai-shortcode-entry">
+                    <h4><?php _e( 'All Image Tags List', 'arwai-image-annotator' ); ?></h4>
+                    <p><code>[arwai_all_tags_list]</code></p>
+                    <p class="description">
+                        <?php _e( 'Displays a list of all unique tags found across all annotations in the current post\'s image collection. If you have linked a taxonomy in the settings above, these tags will link to their respective archive pages.', 'arwai-image-annotator' ); ?>
+                    </p>
+                </div>
+
+                <div class="arwai-shortcode-entry">
+                    <h4><?php _e( 'Single Annotation Display', 'arwai-image-annotator' ); ?></h4>
+                    <p><code>[arwai_single_annotation]</code></p>
+                    <p class="description">
+                        <?php _e( 'Creates a dedicated container to show the details of a single annotation when it is clicked on. This allows you to display the selected annotation\'s content in a different part of your page layout.', 'arwai-image-annotator' ); ?>
+                    </p>
+                </div>
+            </div>
+
         </div>
         <?php
     }
 
 
+/**
+ * load_public_scripts
+ * Enqueues global styles on all relevant pages and viewer-specific assets only when needed.
+ */
+public function load_public_scripts() {
+    // Run this function on single posts OR any archive page.
+    if ( ! is_singular( $this->get_active_post_types() ) && ! is_archive() ) {
+        return;
+    }
 
-    /**
-     * UPDATED: load_public_scripts
-     * Enqueues all scripts needed for both the simple viewer and on-demand OSD viewer.
-     */
-    public function load_public_scripts(){
-        if ( ! is_singular( $this->get_active_post_types() ) ) return;
+    // --- Global Assets ---
+    // Enqueue the main stylesheet unconditionally on these pages because plugin output
+    // (like the archive image) might be present.
+    wp_enqueue_style( 'arwai-public-css', ARWAI_IMAGE_ANNOTATOR_URL . 'assets/css/public/public.css');
+
+    // --- Viewer-Specific Assets ---
+    // Now, check if we are on a singular page to load the heavy viewer-specific assets.
+    // This prevents loading heavy JS libraries on archive pages where they aren't used.
+    if ( is_singular( $this->get_active_post_types() ) ) {
         $post_id = get_the_ID();
         if (!$post_id) return;
 
         $display_mode = get_post_meta( $post_id, self::META_POST_DISPLAY_MODE, true ) ?: get_option( self::OPTION_DEFAULT_NEW_POST_MODE, 'metabox_viewer' );
 
+        // Only load the viewer assets if the mode is correct and we have images.
         if ( 'metabox_viewer' === $display_mode ) {
             $image_ids = json_decode( get_post_meta( $post_id, self::META_IMAGE_IDS, true ), true );
-            if ( !empty( $image_ids ) && is_array( $image_ids ) ) {
 
-                // ### THE FIX: GATHER BOTH 'large' and 'full' IMAGE SIZES ###
+            if ( !empty( $image_ids ) && is_array( $image_ids ) ) {
                 $image_sources = array_reduce( $image_ids, function($carry, $id) {
-                    $large_src = wp_get_attachment_image_src( $id, 'large' ); // For simple viewer
-                    $full_src = wp_get_attachment_image_src( $id, 'full' );   // For OpenSeadragon
+                    $large_src = wp_get_attachment_image_src( $id, 'large' );
+                    $full_src = wp_get_attachment_image_src( $id, 'full' );
                     $thumb_src = wp_get_attachment_image_src( $id, 'thumbnail' );
 
                     if ($large_src && $full_src) {
                         $carry[] = [
                             'post_id'      => $id,
-                            'largeUrl'     => $large_src[0], // URL for the simple viewer
-                            'fullUrl'      => $full_src[0],  // URL for OSD
+                            'largeUrl'     => $large_src[0],
+                            'fullUrl'      => $full_src[0],
                             'thumbnailUrl' => $thumb_src ? $thumb_src[0] : ''
                         ];
                     }
@@ -258,11 +295,11 @@ class Image_Annotator_for_WordPress {
                 }, []);
 
                 if (!empty($image_sources)) {
-                    // Enqueue ALL necessary styles and scripts
+                    // Enqueue viewer styles
                     wp_enqueue_style( 'arwai-annotorious-css', ARWAI_IMAGE_ANNOTATOR_URL . 'assets/css/annotorious/annotorious.min.css');
-                    wp_enqueue_style( 'arwai-public-css', ARWAI_IMAGE_ANNOTATOR_URL . 'assets/css/public/public.css');
                     wp_enqueue_style( 'arwai-slick-css', ARWAI_IMAGE_ANNOTATOR_URL . 'assets/css/slick/slick.css' );
 
+                    // Enqueue viewer scripts
                     wp_enqueue_script( 'arwai-openseadragon-js', ARWAI_IMAGE_ANNOTATOR_URL . 'assets/js/openseadragon/openseadragon.min.js', array('jquery'), null, true );
                     wp_enqueue_script( 'arwai-annotorious-js', ARWAI_IMAGE_ANNOTATOR_URL . 'assets/js/annotorious/annotorious.min.js', array('jquery'), null, true );
                     wp_enqueue_script( 'arwai-annotorious-osd-plugin-js', ARWAI_IMAGE_ANNOTATOR_URL . 'assets/js/annotorious/openseadragon-annotorious.min.js', array( 'arwai-openseadragon-js', 'arwai-annotorious-js' ), null, true );
@@ -270,7 +307,7 @@ class Image_Annotator_for_WordPress {
                     wp_enqueue_script( 'feather-icons-js', 'https://cdn.jsdelivr.net/npm/feather-icons/dist/feather.min.js', array(), null, true);
                     wp_enqueue_script( 'slick-js', ARWAI_IMAGE_ANNOTATOR_URL . 'assets/js/slick/slick.min.js', array('jquery'), null, true );
 
-                    // Annotorious options
+                    // Get viewer options and localize script data...
                     $linked_taxonomy = get_option(self::OPTION_ANNO_TAGS_LINK_TAXONOMY, 'none');
                     $current_user_data = null;
                     if ( is_user_logged_in() ) {
@@ -292,7 +329,7 @@ class Image_Annotator_for_WordPress {
                         'tagLinks' => [],
                     ];
 
-                    if ($linked_taxonomy !== 'none') {
+                     if ($linked_taxonomy !== 'none') {
                         $terms = get_terms(['taxonomy' => $linked_taxonomy, 'hide_empty' => false]);
                         if (!is_wp_error($terms) && !empty($terms)) {
                             $anno_options['tagVocabulary'] = wp_list_pluck($terms, 'name');
@@ -307,7 +344,6 @@ class Image_Annotator_for_WordPress {
                         }
                     }
 
-                    // Localized data structure to match the new script
                     $viewer_data = [
                         'containerId'   => 'arwai-simple-viewer-container-' . $post_id,
                         'images'        => $image_sources,
@@ -320,6 +356,7 @@ class Image_Annotator_for_WordPress {
             }
         }
     }
+}
 
 
     public function load_admin_scripts($hook_suffix) {
@@ -343,12 +380,16 @@ class Image_Annotator_for_WordPress {
 
 
     /**
-     * UPDATED: content_filter
+     * content_filter
      * Generates the HTML for the simple viewer, sidebar, AND the hidden OSD modal.
      */
      public function content_filter($content) {
-        if ( !is_singular( $this->get_active_post_types() ) || !in_the_loop() || !is_main_query() || $this->filter_called > 0 ) return $content;
 
+        if ( !is_singular() ) {
+            return $content;
+        }
+
+        if ( !is_singular( $this->get_active_post_types() ) || !in_the_loop() || !is_main_query() || $this->filter_called > 0 ) return $content;
         $post_id = get_the_ID();
         if (!$post_id) return $content;
 
@@ -364,7 +405,7 @@ class Image_Annotator_for_WordPress {
                 $slides_html = '';
                 foreach ($image_ids as $id) {
                     // Get the 'large' size for the simple viewer and the 'full' URL for OSD
-                    $large_image_html = wp_get_attachment_image( $id, 'medium_large', false, array(
+                    $large_image_html = wp_get_attachment_image( $id, 'large', false, array(
                         'data-full-url' => wp_get_attachment_image_url($id, 'full'),
                         'data-attachment-id' => $id,
                         'loading' => 'lazy' // Lazy load images that are not visible
@@ -447,21 +488,54 @@ class Image_Annotator_for_WordPress {
                         <div id='arwai-osd-modal' style='display:none;'>
                             <div id='arwai-osd-viewer'>
                             </div>
-
                             <div id='arwai-openseadragon-toolbar' class='arwai-osd-toolbar-container'>
-                                <button id='arwai-toggle-annotations-osd' title='Toggle Annotations'>
-                                    <span data-feather='eye'></span>
-                                    <span data-feather='eye-off' style='display:none;'></span>
-                                </button>
-                                <button id='arwaiZoomIn'><span data-feather='zoom-in'></span></button>
-                                <button id='arwaiZoomOut'><span data-feather='zoom-out'></span></button>
-                                <button id='arwaiHome'><span data-feather='home'></span></button>
-                                <button id='arwaiPrevious'><span data-feather='arrow-left'></span></button>
-                                <button id='arwaiNext'><span data-feather='arrow-right'></span></button>
-                                <button id='arwaiRotateLeft'><span data-feather='rotate-ccw'></span></button>
-                                <button id='arwaiRotateRight'><span data-feather='rotate-cw'></span></button>
-                                <button id='arwai-osd-close' title='Close Deep Zoom'> <span data-feather='x-circle'></span></button>
+
+                                <div class='arwai-osd-toolbar-button-wrapper'>
+                                    <button id='arwai-toggle-annotations-osd' title='Toggle Annotations'>
+                                        <span data-feather='eye'></span>
+                                        <span data-feather='eye-off' style='display:none;'></span>
+                                    </button>
+                                    <div id='arwaiAnnotationStateOn'>Notes</div>
+                                </div>
+
+                                    <div class='arwai-osd-toolbar-button-wrapper' >
+                                        <button id='arwaiPrevious'><span data-feather='arrow-left'></span></button>
+                                        <span>Previous</span>
+                                    </div>
+
+                                    <div id='arwaiHomeWrapper' class='arwai-osd-toolbar-button-wrapper'><button id='arwaiHome'><span data-feather='home'></span></button>
+                                        <span>Home</span>
+                                    </div>
+
+                                    <div class='arwai-osd-toolbar-button-wrapper'><button id='arwaiNext'><span data-feather='arrow-right'></span></button>
+                                        <span>Next</span>
+                                    </div>
+                                <div class='arwai-osd-toolbar-button-wrapper'>
+                                    <button id='arwai-osd-close' title='Close Deep Zoom'> <span data-feather='x-circle'></span></button>
+                                    <span>Close</span>
+
+                                </div>
+
                             </div>
+
+                            <div id='arwai-openseadragon-toolbar-other' class='arwai-osd-toolbar-container'>
+                                <div class='arwai-osd-toolbar-button-wrapper' >
+                                    <div class='arwai-zoom-buttons'>
+                                        <button id='arwaiZoomIn'><span data-feather='zoom-in'></span></button>
+                                        <button id='arwaiZoomOut'><span data-feather='zoom-out'></span></button> 
+                                    </div>
+                                    <span>Zoom</span>
+                                </div>
+                                <div class='arwai-osd-toolbar-button-wrapper' >
+                                    <div class='arwai-rotate-buttons'>
+                                        <button id='arwaiRotateLeft'><span data-feather='rotate-ccw'></span></button>
+                                        <button id='arwaiRotateRight'><span data-feather='rotate-cw'></span></button> 
+                                    </div>
+                                    <span>Rotate</span>
+                                </div>
+
+                            </div>
+
                         </div>
 
                     </div>
@@ -477,22 +551,20 @@ class Image_Annotator_for_WordPress {
     }
 
 
-                                                    // <label>Show Annotations</label>
-
         /**
      * Renders the annotation list via a shortcode.
      *
      * @return string The HTML for the annotation list container.
      */
-    public function render_annotation_list_shortcode() {
-        // The HTML you want to convert into a shortcode.
-        $html = "
-        <div id='arwai-annotation-list-container' class='arwai-annotation-list-shortcode'>
-            <ul id='arwai-annotation-list'></ul>
-        </div>
-        ";
-        return $html;
-    }
+    // public function render_annotation_list_shortcode() {
+    //     // The HTML you want to convert into a shortcode.
+    //     $html = "
+    //     <div id='arwai-annotation-list-container' class='arwai-annotation-list-shortcode'>
+    //         <ul id='arwai-annotation-list'></ul>
+    //     </div>
+    //     ";
+    //     return $html;
+    // }
 
 
     /**
@@ -510,6 +582,93 @@ class Image_Annotator_for_WordPress {
         ";
         return $html;
     }
+
+
+/**
+     * Renders a list of all unique tags from all annotations on the current post's images.
+     *
+     * @return string The HTML for the tags list.
+     */
+    public function render_all_tags_list_shortcode() {
+        // Only run on single posts/pages where image IDs can be found.
+        if ( !is_singular() ) {
+            return '';
+        }
+
+        $post_id = get_the_ID();
+        $image_ids_json = get_post_meta( $post_id, self::META_IMAGE_IDS, true );
+        $image_ids = json_decode( $image_ids_json, true );
+
+        // If there are no images in the collection, there's nothing to do.
+        if ( empty($image_ids) || !is_array($image_ids) ) {
+            return '';
+        }
+
+        // ---  Get the ID of the first image in the collection ---
+        // We will append this ID to the tag links.
+        $first_image_id = $image_ids[0];
+
+        global $wpdb;
+        $all_tags = [];
+        
+
+        // Prepare a SQL query to get all annotations for the images in the collection.
+        $placeholders = implode( ',', array_fill( 0, count($image_ids), '%d' ) );
+        $sql = $wpdb->prepare(
+            "SELECT annotation_data FROM {$this->table_name} WHERE attachment_id IN ($placeholders)",
+            $image_ids
+        );
+
+        $results = $wpdb->get_col( $sql );
+
+        // Loop through each annotation's JSON data.
+        foreach ( $results as $annotation_json ) {
+            $annotation = json_decode( $annotation_json, true );
+
+            // Check for a valid body and loop through its items.
+            if ( json_last_error() === JSON_ERROR_NONE && !empty($annotation['body']) ) {
+                foreach ( $annotation['body'] as $body_item ) {
+                    // If the purpose is 'tagging', extract its value.
+                    if ( isset($body_item['purpose']) && $body_item['purpose'] === 'tagging' && !empty($body_item['value']) ) {
+                        $all_tags[] = $body_item['value'];
+                    }
+                }
+            }
+        }
+
+        // If no tags were found, return empty.
+        if ( empty($all_tags) ) {
+            return '';
+        }
+
+        // Filter for unique tags and sort them alphabetically.
+        $unique_tags = array_unique( $all_tags );
+        sort( $unique_tags );
+
+        // Check if tags should be linked to taxonomy archives.
+        $linked_taxonomy = get_option(self::OPTION_ANNO_TAGS_LINK_TAXONOMY, 'none');
+
+        // Build the final HTML list.
+        $html = '<div class="arwai-all-tags-list-shortcode"><h3>Annotation Tags</h3><ul class="arwai-tags-list">';
+
+        foreach ( $unique_tags as $tag_name ) {
+            $tag_html = esc_html($tag_name);
+
+            // If a linked taxonomy is set, attempt to create a link.
+            if ( $linked_taxonomy !== 'none' ) {
+                $term_link = get_term_link( $tag_name, $linked_taxonomy );
+                if ( !is_wp_error( $term_link ) ) {
+                    $tag_html = '<a href="' . esc_url( $term_link ) . '">' . $tag_html . '</a>';
+                }
+            }
+            $html .= '<li class="arwai-tag">' . $tag_html . '</li>';
+        }
+
+        $html .= '</ul></div>';
+
+        return $html;
+    }
+
 
     public function add_plugin_metaboxes() {
         $active_post_types = $this->get_active_post_types();
@@ -855,8 +1014,6 @@ class Image_Annotator_for_WordPress {
 
 /**
  * Include attachments on archive, tag, and category pages.
- *
- * @param WP_Query $query The main WordPress query object.
  */
 function arwai_include_attachments_in_archives( $query ) {
     // Only modify the main query on the front-end for archive pages.
@@ -887,3 +1044,39 @@ function arwai_include_attachments_in_archives( $query ) {
     }
 }
 add_action( 'pre_get_posts', 'arwai_include_attachments_in_archives' );
+
+
+/**
+ * TARGETED RENDER FILTER: Modifies the Post Content block ONLY for attachments on archive pages.
+ */
+function arwai_wrap_attachment_content_in_permalink( $block_content, $block ) {
+    // We only care about the 'core/post-content' block.
+    if ( isset($block['blockName']) && $block['blockName'] === 'core/post-content' ) {
+
+        // --- NEW DEBUGGING LINE ---
+        // This will only appear if the 'core/post-content' block is actually being rendered.
+        echo '';
+
+        // This logic only runs if the post is an ATTACHMENT on a front-end archive page.
+        if ( !is_admin() && is_archive() && get_post_type() === 'attachment' ) {
+
+            $image_size = 'large'; // <-- Set your desired size HERE
+            $attachment_id = get_the_ID();
+            $permalink     = get_permalink( $attachment_id );
+            $image_html = wp_get_attachment_image( $attachment_id, $image_size );
+
+            if ( $image_html && $permalink ) {
+                return '
+                    <figure class="arwai-archive-attachment-image">
+                        <a href="' . esc_url( $permalink ) . '">' . $image_html . '</a>
+                    </figure>
+                ';
+            }
+        }
+    }
+
+    // For all other blocks/post types, return the original, unmodified content.
+    return $block_content;
+}
+add_filter( 'render_block', 'arwai_wrap_attachment_content_in_permalink', 10, 2 );
+
