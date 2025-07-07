@@ -631,11 +631,11 @@ function launchOsdViewer() {
             dots: false,
             arrows: false,
             infinite: true,
-            speed: 600,
+            speed: 1200,
             slidesToShow: 1,
             adaptiveHeight: true,
             swipeToSlide: true,
-            touchThreshold: 7,
+            touchThreshold: 5,
             initialSlide: initialSlideIndex // This reliably sets the starting slide
         });
 

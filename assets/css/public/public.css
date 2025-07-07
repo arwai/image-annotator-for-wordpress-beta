@@ -84,7 +84,7 @@
     overflow-y: auto;
     border-top: 1px solid #ddd;
     border-bottom: 1px solid #ddd;
-    margin-bottom: 2rem;
+    /* margin-bottom: 2rem; */
     /* Height is handled by 'align-items: stretch' on the parent */
 }
 
@@ -216,6 +216,8 @@
     justify-content: center;
     /* padding: 1rem; */
     background: #f8f9fa;
+    border-bottom: 1px solid #ddd;
+
 }
 
 #arwai-simple-viewer-reference-strip {
@@ -224,6 +226,7 @@
     padding: 5px 0;
     white-space: nowrap;
     scrollbar-width: none; /* Firefox */
+
 }
 
 #arwai-simple-viewer-reference-strip::-webkit-scrollbar {
@@ -258,6 +261,12 @@
     cursor: pointer;
     padding: 10px 5px;
     z-index: 1;
+    height: 80px;
+}
+
+.arwai-simple-strip-scroll-left:hover ,
+.arwai-simple-strip-scroll-right:hover {
+    transform: var(--arwai-tag-transition-child-scale-medium);
 }
 
 /* ==========================================================================
@@ -549,7 +558,7 @@ ul#arwai-single-annotation li div.arwai-anno-list-body ul li p{
     top: 0;
     left: 0;
     width: 100vw;
-    height: 100vh;
+    height: 100dvh;
     background-color: rgba(0, 0, 0, 0.9);
     z-index: 9999;
     margin: 0;
