@@ -413,11 +413,13 @@
     position: relative;
     text-align: center;
     /* transform: scale(1); */
-    
+        cursor: pointer;
+
     /* Transition all the properties that will change */
     transition: 
                 border-color 0.2s ease, 
                 box-shadow 0.2s ease;
+
 }
 
 
@@ -1014,3 +1016,5 @@ ul#arwai-single-annotation li div.arwai-anno-list-body ul li p{
 /* .arwai-archive-featured-image{
     border:10px dashed green;
 } */
+
+

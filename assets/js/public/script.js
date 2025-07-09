@@ -739,21 +739,34 @@ function launchOsdViewer() {
 
     // --- SHARED EVENT HANDLERS (Used in BOTH modes) ---
 
-    // Click handler for the annotation list items
-    listContainer.on('click', 'li[data-id]', function() {
-        const clickedId = $(this).data('id').toString();
-        if (!simpleAnno) return;
+// Final click handler for the annotation list items
+    listContainer.on('click', 'li[data-id]', function(event) {
+        event.stopPropagation();
 
-        const annotationToSelect = simpleAnno.getAnnotations().find(anno => {
+        const activeAnno = osdViewer ? osdAnno : simpleAnno;
+        if (!activeAnno) return;
+
+        const clickedId = $(this).data('id').toString();
+        const annotationToSelect = activeAnno.getAnnotations().find(anno => {
             const idBody = anno.body.find(b => b.purpose === 'arwai-AnnotationID');
             return idBody && idBody.value === clickedId;
         });
 
         if (annotationToSelect) {
-            simpleAnno.selectAnnotation(annotationToSelect);
+            // This selects the annotation on the image
+            activeAnno.selectAnnotation(annotationToSelect);
+
+            // --- MANUAL UI UPDATES ---
+            // Since the event doesn't fire, we do its work here.
+
+            // 1. Update the list item highlighting
+            listContainer.find('li.is-highlighted').removeClass('is-highlighted');
+            $(this).addClass('is-highlighted'); // 'this' is the <li> that was clicked
+
+            // 2. Update the separate "single annotation" display
+            updateSingleAnnotationDisplay(annotationToSelect);
         }
     });
-
     // The shared click handler for toggling annotation visibility
     function handleAnnotationToggle() {
         annotationsVisible = !annotationsVisible;
