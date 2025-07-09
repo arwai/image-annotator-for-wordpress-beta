@@ -401,17 +401,19 @@ public function load_public_scripts() {
                 $this->filter_called++;
                 $container_id = 'arwai-simple-viewer-container-' . $post_id;
                 
-                // ### NEW: Generate all slides for Slick ###
-                $slides_html = '';
-                foreach ($image_ids as $id) {
-                    // Get the 'large' size for the simple viewer and the 'full' URL for OSD
-                    $large_image_html = wp_get_attachment_image( $id, 'large', false, array(
-                        'data-full-url' => wp_get_attachment_image_url($id, 'full'),
-                        'data-attachment-id' => $id,
-                        'loading' => 'lazy' // Lazy load images that are not visible
-                    ));
-                    $slides_html .= "<div><div class='arwai-slick-slide-wrapper'>" . $large_image_html . "</div></div>";
-                }
+            // Generate all slides for Slick.
+            // The <img> 'src' will be the 'medium' size for mobile-first loading.
+            // The 'large' image URL is stored in 'data-large-src' for JS to use on desktop.
+            $slides_html = '';
+            foreach ($image_ids as $id) {
+                $medium_image_html = wp_get_attachment_image( $id, 'medium_large', false, array(
+                    'data-large-src'   => wp_get_attachment_image_url($id, 'large'),
+                    'data-full-url'    => wp_get_attachment_image_url($id, 'full'),
+                    'data-attachment-id' => $id,
+                    'loading'          => 'lazy'
+                ));
+                $slides_html .= "<div><div class='arwai-slick-slide-wrapper'>" . $medium_image_html . "</div></div>";
+            }
 
                 $thumbnails_html = '';
                 foreach ($image_ids as $index => $id) {
@@ -1060,7 +1062,7 @@ function arwai_wrap_attachment_content_in_permalink( $block_content, $block ) {
         // This logic only runs if the post is an ATTACHMENT on a front-end archive page.
         if ( !is_admin() && is_archive() && get_post_type() === 'attachment' ) {
 
-            $image_size = 'large'; // <-- Set your desired size HERE
+            $image_size = 'medium'; // <-- Set your desired size HERE
             $attachment_id = get_the_ID();
             $permalink     = get_permalink( $attachment_id );
             $image_html = wp_get_attachment_image( $attachment_id, $image_size );

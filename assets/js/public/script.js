@@ -125,6 +125,33 @@ jQuery(document).ready(function($) {
     //     return newA;
     // }
 
+
+    // --- RESPONSIVE IMAGE LOADER FOR SLICK ---
+    function handleResponsiveSliderImages() {
+        // Check if the viewport is wider than the mobile breakpoint
+        if (window.innerWidth > 767) {
+            // Find all images within the slider that have a 'data-large-src' attribute
+            slickSlider.find('img[data-large-src]').each(function() {
+                const $image = $(this);
+                const largeSrc = $image.data('large-src');
+                const currentSrc = $image.attr('src');
+
+                // To prevent re-downloading, only swap if the large source exists
+                // and is different from the image's current source.
+                if (largeSrc && largeSrc !== currentSrc) {
+                    $image.attr('src', largeSrc);
+                }
+            });
+        }
+        // On mobile (< 767px), we do nothing. The images will use the default 'src'
+        // which PHP has set to the 'medium' size, achieving our goal.
+    }
+
+    // Run the function on initial page load
+    handleResponsiveSliderImages();
+
+    // Re-run the function when the window is resized to handle orientation changes or browser resizing.
+    $(window).on('resize', handleResponsiveSliderImages);
     // Generic function to load annotations from the server into ANY Annotorious instance
     function loadAnnotations(attachmentId, annoInstance) {
         if (!annoInstance || !attachmentId) return;
@@ -146,26 +173,45 @@ jQuery(document).ready(function($) {
     }
 
     // Generic function to update the sidebar list from ANY Annotorious instance
-    function updateAnnotationList(annoInstance) {
-        if (!listContainer.length || !annoInstance) return;
-        listContainer.empty();
-        const annotations = annoInstance.getAnnotations();
-        if (annotations.length === 0) {
-            listContainer.html('<li style="background:transparent;">No annotations for this image.</li>');
-            return;
-        }
-        const tagLinks = anno_options.tagLinks || {};
-        annotations.forEach(annotation => {
-            const idBody = annotation.body.find(b => b.purpose === 'arwai-AnnotationID');
-            const annotationId = idBody ? idBody.value : 'N/A';
-            const tagBodies = annotation.body.filter(b => b.purpose === 'tagging');
-            const tagsHtml = tagBodies.length > 0 ? tagBodies.map(body => {
+function updateAnnotationList(annoInstance) {
+    if (!listContainer.length || !annoInstance) return;
+    listContainer.empty();
+    let annotations = annoInstance.getAnnotations(); // Changed to let to allow sorting
+
+    if (annotations.length === 0) {
+        listContainer.html('<li style="background:transparent;">No annotations for this image.</li>');
+        return;
+    }
+
+    // Sort annotations by their ID (arwai-AnnotationID)
+    annotations.sort((a, b) => {
+        const idBodyA = a.body.find(body => body.purpose === 'arwai-AnnotationID');
+        const idBodyB = b.body.find(body => body.purpose === 'arwai-AnnotationID');
+
+        // Parse the ID, defaulting to 0 if not found
+        const idA = idBodyA ? parseInt(idBodyA.value, 10) : 0;
+        const idB = idBodyB ? parseInt(idBodyB.value, 10) : 0;
+
+        return idA - idB;
+    });
+
+    const tagLinks = anno_options.tagLinks || {};
+    annotations.forEach(annotation => {
+        const idBody = annotation.body.find(b => b.purpose === 'arwai-AnnotationID');
+        const annotationId = idBody ? idBody.value : 'N/A';
+        const tagBodies = annotation.body.filter(b => b.purpose === 'tagging');
+        
+        // Add a style attribute to hide the footer if there are no tags
+        const footerStyle = tagBodies.length === 0 ? 'style="display: none;"' : '';
+        
+        const tagsHtml = tagBodies.map(body => {
             const tagName = body.value;
             return tagLinks[tagName] ? `<button class="arwai-anno-list-tag arwai-tag"><a href="${tagLinks[tagName]}" class="arwai-anno-list-tag-link">${tagName}</a></button>` : `<span class=" arwai-tag">${tagName}</span>`;
-            }).join(' ') : '<em>n/a</em>';
-            const commentBodies = annotation.body.filter(b => b.purpose === 'commenting' || b.purpose === 'replying');
-            let commentsHtml = '<p class="arwai-empty-comment"><em>Empty comment</em></p>';
-            if (commentBodies.length > 0) {
+        }).join(' ');
+
+        const commentBodies = annotation.body.filter(b => b.purpose === 'commenting' || b.purpose === 'replying');
+        let commentsHtml = '<p class="arwai-empty-comment"><em>Empty comment</em></p>';
+        if (commentBodies.length > 0) {
             commentsHtml = '<ul class="arwai-anno-list-comments">';
             commentBodies.forEach(body => {
                 const creator = body.creator || annotation.creator;
@@ -173,11 +219,10 @@ jQuery(document).ready(function($) {
                 const dateValue = body.created || annotation.created;
                 let createdDate = 'N/A';
                 if (dateValue) {
-                const dateObj = new Date(dateValue);
-                // Format: "25 Mar 2015" and "14:05"
-                const datePart = dateObj.toLocaleDateString(undefined, { day: '2-digit', month: 'short', year: 'numeric' });
-                const timePart = dateObj.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', hour12: false });
-                createdDate = `${datePart}  (${timePart})`;
+                    const dateObj = new Date(dateValue);
+                    const datePart = dateObj.toLocaleDateString(undefined, { day: '2-digit', month: 'short', year: 'numeric' });
+                    const timePart = dateObj.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', hour12: false });
+                    createdDate = `${datePart}  (${timePart})`;
                 }
                 const commentText = body.value || '<em>Empty comment</em>';
                 commentsHtml += `
@@ -190,8 +235,8 @@ jQuery(document).ready(function($) {
                 </li>`;
             });
             commentsHtml += '</ul>';
-            }
-            const listItem = `
+        }
+        const listItem = `
         <li data-id="${annotationId}">
             <div class="arwai-anno-list-item">
                 <div class="arwai-anno-list-header"><span> ${annotationId}</span>
@@ -199,108 +244,89 @@ jQuery(document).ready(function($) {
                 <div>
                     <div class="arwai-anno-list-body">${commentsHtml}
                     </div>
-                    <div class="arwai-anno-list-footer"><strong>Tags:</strong> ${tagsHtml}
+                    <div class="arwai-anno-list-footer" ${footerStyle}><strong>Tags:</strong> ${tagsHtml}
                     </div>
                 </div>
             </div>
         </li>`;
         listContainer.append(listItem);
-        });
+    });
+}
+    // ### SINGLE ANNOTATION DISPLAY ###
+function updateSingleAnnotationDisplay(annotation) {
+    if (!singleAnnotationContainer.length) return;
+
+    if (!annotation) {
+        singleAnnotationContainer.hide();
+        singleAnnotationList.empty();
+        return;
     }
 
-    // ### SINGLE ANNOTATION DISPLAY ###
-    function updateSingleAnnotationDisplay(annotation) {
-        if (!singleAnnotationContainer.length) return; // Do nothing if the shortcode isn't on the page
+    const idBody = annotation.body.find(b => b.purpose === 'arwai-AnnotationID');
+    const annotationId = idBody ? idBody.value : 'N/A';
+    const tagBodies = annotation.body.filter(b => b.purpose === 'tagging');
 
-        // If no annotation is selected (or deselected), hide and clear it.
-        if (!annotation) {
-            singleAnnotationContainer.hide();
-            singleAnnotationList.empty();
-            return;
-        }
-
-        // --- Get annotation data (similar to the main list) ---
-        const idBody = annotation.body.find(b => b.purpose === 'arwai-AnnotationID');
-        const annotationId = idBody ? idBody.value : 'N/A';
-        const tagBodies = annotation.body.filter(b => b.purpose === 'tagging');
-
-    // 1. Get the tagLinks object, just like in your other function.
+    // Add a style attribute to hide the footer if there are no tags
+    const footerStyle = tagBodies.length === 0 ? 'style="display: none;"' : '';
+    
     const tagLinks = anno_options.tagLinks || {};
-
-    // 2. Use the same logic to generate linked tags.
-    const tagsHtml = tagBodies.length > 0 ? tagBodies.map(body => {
+    const tagsHtml = tagBodies.map(body => {
         const tagName = body.value;
         return tagLinks[tagName] 
             ? `<button class="arwai-anno-list-tag arwai-tag"><a href="${tagLinks[tagName]}" class="arwai-anno-list-tag-link">${tagName}</a></button>` 
             : `<span class="arwai-anno-list-tag arwai-tag">${tagName}</span>`;
-    }).join(' ') : '<em>n/a</em>';
+    }).join(' ');
 
+    const commentBodies = annotation.body.filter(b => b.purpose === 'commenting' || b.purpose === 'replying');
+    let commentsHtml = '<p><em>No comments.</em></p>';
+    if (commentBodies.length > 0) {
+        commentsHtml = '<ul>' + commentBodies.map(body => {
+            const creatorName = body.creator ? (body.creator.name || body.creator.displayName) : 'Unknown';
+            return `<li><p>${body.value}</p><small>By: ${creatorName}</small></li>`;
+        }).join('') + `</ul>`;
+    }
+    const newHtml = `
+        <li>
+            <div class="arwai-anno-list-header-single">
+                <span>${annotationId}
+                </span>
+            </div>
+            <div class="arwai-anno-list-body">${commentsHtml}</div>
+            <div class="arwai-anno-list-footer" ${footerStyle}><strong>Tags:</strong> ${tagsHtml}</div>
+            <span>
+                <button id="arwai-close-single-annotation" class="arwai-btn" title="Close">
+                    <i data-feather="x"></i>    
+                </button>
+            </span>  
+        </li>
+    `;
+    singleAnnotationList.html(newHtml);
 
-        const commentBodies = annotation.body.filter(b => b.purpose === 'commenting' || b.purpose === 'replying');
-        let commentsHtml = '<p><em>No comments.</em></p>';
-        if (commentBodies.length > 0) {
-            commentsHtml = '<ul>' + commentBodies.map(body => {
-                const creatorName = body.creator ? (body.creator.name || body.creator.displayName) : 'Unknown';
-                return `<li><p>${body.value}</p><small>By: ${creatorName}</small></li>`;
-            }).join('') + `</ul>`;
-        }
-        const newHtml = `
-            <li>
-                <div class="arwai-anno-list-header-single">
-                    <span>${annotationId}
-                    </span>
-                </div>
-                <div class="arwai-anno-list-body">${commentsHtml}</div>
-                <div class="arwai-anno-list-footer"><strong>Tags:</strong> ${tagsHtml}</div>
-                <span>
-                    <button id="arwai-close-single-annotation" class="arwai-btn" title="Close">
-                        <i data-feather="x"></i>    
-                    </button>
-                </span>  
+    if (typeof feather !== 'undefined') {
+        feather.replace();
+    }
 
-            </li>
-          
-            `;
-        singleAnnotationList.html(newHtml);
-
-        // Call feather.replace() to render the new icon
-        if (typeof feather !== 'undefined') {
-            feather.replace();
-        }
-
-        // --- Sync the Border Color ---
-        const style = arwaiStyleFormatter(annotation);
-
-        // Remove any previous is-* classes from the single annotation container
-        singleAnnotationContainer.removeClass(function(index, className) {
-            return (className.match(/\bis-[^\s]+/g) || []).join(' ');
-        });
+    const style = arwaiStyleFormatter(annotation);
+    singleAnnotationContainer.removeClass(function(index, className) {
+        return (className.match(/\bis-[^\s]+/g) || []).join(' ');
+    });
 
     if (style && style.className) {
-        // First, find the specific ID of the annotation being displayed
         const idBody = annotation.body.find(b => b.purpose === 'arwai-AnnotationID');
         if (idBody) {
-            // Now, construct a specific selector to target only the matching list item
             const specificListItem = listContainer.find(`li[data-id="${idBody.value}"]`);
-
-            // Apply the class to the single annotation container
             singleAnnotationContainer.addClass('is-' + style.className);
-
-            // And also apply it to the corresponding item in the main list
             specificListItem.addClass('is-' + style.className);
         }
     }
-        //
-
-
-        // Only show if screen width is less than 777px
-        if (window.innerWidth < 767) {
-            singleAnnotationContainer.css('display', 'block');
-        } else {
-            singleAnnotationContainer.hide();
-        }
-
+    
+    if (window.innerWidth < 767) {
+        singleAnnotationContainer.css('display', 'block');
+    } else {
+        singleAnnotationContainer.hide();
     }
+}
+
 
     // Generic function to attach saving/deleting event handlers to ANY Annotorious instance
     function attachEventHandlers(annoInstance) {
@@ -487,6 +513,8 @@ function launchOsdViewer() {
             initialPage: currentIndex,
             sequenceMode: true,
             showRotationControl: true,
+            minZoomLevel: 	.3,
+            maxZoomLevel: 	10,
             // toolbar: 'arwai-openseadragon-toolbar',
             zoomInButton:   'arwaiZoomIn',
             zoomOutButton:  'arwaiZoomOut',
@@ -496,9 +524,9 @@ function launchOsdViewer() {
             rotateLeftButton:  'arwaiRotateLeft',
             rotateRightButton: 'arwaiRotateRight',
             // fullPageButton: 'arwaiFullpage',
-            gestureSettingsTouch: {
-                pinchRotate: true
-            }
+            // gestureSettingsTouch: {
+            //     pinchRotate: true
+            // }
         });
 
         // Fired once the OSD viewer is open and ready.
@@ -571,7 +599,6 @@ function launchOsdViewer() {
         osdModal.hide();
         updateView(currentIndex); // Relaunch the simple viewer on the correct image
 
-        // --- THIS IS THE FIX ---
         // After closing the modal, we re-initialize the simple viewer and
         // immediately reload its annotations if they were supposed to be visible.
         setTimeout(() => {
@@ -587,6 +614,7 @@ function launchOsdViewer() {
             }
         }, 50); // A small delay ensures the viewer is ready.
     }
+
 
 
     // --- 6. EVENT BINDING & INITIALIZATION ---
@@ -631,7 +659,8 @@ function launchOsdViewer() {
             dots: false,
             arrows: false,
             infinite: true,
-            speed: 1200,
+            speed: 300,
+            cssEase: 'cubic-bezier(0.645, 0.045, 0.355, 1)', // Custom easing
             slidesToShow: 1,
             adaptiveHeight: true,
             swipeToSlide: true,
