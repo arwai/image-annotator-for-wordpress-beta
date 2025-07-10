@@ -828,7 +828,7 @@ ul#arwai-single-annotation li div.arwai-anno-list-body ul li p{
         gap: 6px;
         padding: 8px;
         justify-content: center;
-        flex-basis: 1;
+        /* flex-basis: 1; */
     }
 
         #arwai-openseadragon-toolbar-other {

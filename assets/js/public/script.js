@@ -5,49 +5,58 @@ console.log('File loaded: script.js');
  * A formatter to display the annotation ID label.
  * This version is more robust for Safari compatibility.
  */
-const arwaiIdFormatter = function(annotation) { 
-const idBody = annotation.body.find(b => b.purpose === 'arwai-AnnotationID'); 
-    if (idBody) { 
-        // 1. Create the SVG <foreignObject> wrapper 
-        const foreignObject = document.createElementNS('http://www.w3.org/2000/svg', 'foreignObject');
+const arwaiIdFormatter = function(annotation) {
+  const idBody = annotation.body.find(b => b.purpose === 'arwai-AnnotationID');
 
-        // 2. Create the HTML <label> element using the correct XHTML namespace 
-        const label = document.createElementNS('http://www.w3.org/1999/xhtml', 'label');
+  if (idBody) {
+    // 1. Create the SVG <foreignObject> wrapper
+    const foreignObject = document.createElementNS('http://www.w3.org/2000/svg', 'foreignObject');
 
-        // 3. Set its text content (safer than innerHTML) 
-        label.textContent = idBody.value;
+    // 2. Create the HTML <label> element using the correct XHTML namespace
+    const label = document.createElementNS('http://www.w3.org/1999/xhtml', 'label');
+    label.textContent = idBody.value;
 
-        // 4. Apply browser/platform-specific styles 
-        function isIOS() { return /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream; 
-            
-        }
-
-        function isMacSafari() { 
-            return /Macintosh/.test(navigator.userAgent) && /Safari/.test(navigator.userAgent) && /Apple Computer/.test(navigator.vendor) && !/Chrome/.test(navigator.userAgent) && !/Firefox/.test(navigator.userAgent); 
-        }
-
-        if (isIOS() || isMacSafari()) { 
-            foreignObject.setAttribute('width', '24'); 
-            foreignObject.setAttribute('height', '24'); 
-            foreignObject.setAttribute('style', 'transform: translate(-12px, -12px);'); 
-            foreignObject.style.transformOrigin = 'center center'; 
-        } 
-        else { 
-            foreignObject.setAttribute('width', '24'); 
-            foreignObject.setAttribute('height', '24');
-            label.setAttribute('width', '1'); 
-            label.setAttribute('height', '1'); 
-            label.setAttribute('style', 'transform: translate(-12px, -12px);'); 
-        }
-
-        // 5. Append the HTML label inside the SVG wrapper 
-        foreignObject.appendChild(label);
-
-        // 6. Return the element for Annotorious to render 
-        return { element: foreignObject }; 
+    // 3. Platform detection helpers
+    function isIOS() {
+      return /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
     }
 
-return null; }
+    function isMacSafari() {
+      return /Macintosh/.test(navigator.userAgent) &&
+             /Safari/.test(navigator.userAgent) &&
+             /Apple Computer/.test(navigator.vendor) &&
+             !/Chrome/.test(navigator.userAgent) &&
+             !/Firefox/.test(navigator.userAgent);
+    }
+
+    function isFirefoxMobile() {
+      return /Android/.test(navigator.userAgent) && /Firefox/.test(navigator.userAgent);
+    }
+
+    // 4. Apply conditional styling for limited platforms
+    if (isIOS() || isMacSafari() || isFirefoxMobile()) {
+      foreignObject.setAttribute('width', '24');
+      foreignObject.setAttribute('height', '24');
+      foreignObject.setAttribute('style', 'transform: translate(-12px, -12px);');
+      foreignObject.style.transformOrigin = 'center center';
+    } else {
+      foreignObject.setAttribute('width', '24');
+      foreignObject.setAttribute('height', '24');
+      label.setAttribute('width', '1');
+      label.setAttribute('height', '1');
+      label.setAttribute('style', 'transform: translate(-12px, -12px);');
+    }
+
+    // 5. Append the HTML label inside the SVG wrapper
+    foreignObject.appendChild(label);
+
+    // 6. Return the element for Annotorious to render
+    return { element: foreignObject };
+  }
+
+  return null;
+};
+
 
 /**
  * A single, combined formatter to handle annotation styling.
@@ -543,6 +552,7 @@ function launchOsdViewer() {
             showRotationControl: true,
             minZoomLevel: 	.3,
             maxZoomLevel: 	10,
+            drawer: "canvas",
             // toolbar: 'arwai-openseadragon-toolbar',
             zoomInButton:   'arwaiZoomIn',
             zoomOutButton:  'arwaiZoomOut',
@@ -687,12 +697,12 @@ function launchOsdViewer() {
             dots: false,
             arrows: false,
             infinite: true,
-            speed: 300,
-            cssEase: 'cubic-bezier(0.645, 0.045, 0.355, 1)', // Custom easing
+            speed: 50,
+            cssEase: 'linear', //'cubic-bezier(0.645, 0.045, 0.355, 1)',  Custom easing
             slidesToShow: 1,
             adaptiveHeight: true,
             swipeToSlide: true,
-            touchThreshold: 5,
+            touchThreshold: 10,
             initialSlide: initialSlideIndex // This reliably sets the starting slide
         });
 
