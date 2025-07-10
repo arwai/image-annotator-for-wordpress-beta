@@ -76,6 +76,56 @@ const arwaiStyleFormatter = function(annotation) {
     return null;
 };
 
+/**
+ * A helper function to convert a date into a simple, relative time string.
+ * It displays only the largest single time unit.
+ */
+function formatTimeAgo(dateString) {
+  if (!dateString) return '';
+
+  const date = new Date(dateString);
+  const now = new Date();
+  const seconds = Math.floor((now - date) / 1000);
+
+  if (seconds < 5) {
+    return "just now";
+  }
+
+  let interval = seconds / 31536000; // Years
+  if (interval > 1) {
+    const value = Math.floor(interval);
+    return value === 1 ? "1 year ago" : `${value} years ago`;
+  }
+  
+  interval = seconds / 2592000; // Months
+  if (interval > 1) {
+    const value = Math.floor(interval);
+    return value === 1 ? "1 month ago" : `${value} months ago`;
+  }
+  
+  interval = seconds / 86400; // Days
+  if (interval > 1) {
+    const value = Math.floor(interval);
+    return value === 1 ? "1 day ago" : `${value} days ago`;
+  }
+  
+  interval = seconds / 3600; // Hours
+  if (interval > 1) {
+    const value = Math.floor(interval);
+    return value === 1 ? "1 hour ago" : `${value} hours ago`;
+  }
+  
+  interval = seconds / 60; // Minutes
+  if (interval > 1) {
+    const value = Math.floor(interval);
+    return value === 1 ? "1 minute ago" : `${value} minutes ago`;
+  }
+  
+  // Default to seconds if less than a minute
+  const value = Math.floor(seconds);
+  return value === 1 ? "1 second ago" : `${value} seconds ago`;
+}
+
 
 jQuery(document).ready(function($) {
     console.log('Document ready. Starting viewer initialization.');
@@ -209,6 +259,8 @@ jQuery(document).ready(function($) {
         });
     }
 
+
+
     // Generic function to update the sidebar list from ANY Annotorious instance
 function updateAnnotationList(annoInstance) {
     if (!listContainer.length || !annoInstance) return;
@@ -254,13 +306,15 @@ function updateAnnotationList(annoInstance) {
                 const creator = body.creator || annotation.creator;
                 const creatorName = creator ? (creator.name || creator.displayName) : 'Unknown';
                 const dateValue = body.created || annotation.created;
-                let createdDate = 'N/A';
+
+                let createdDate = ''; // Default to empty
+
                 if (dateValue) {
-                    const dateObj = new Date(dateValue);
-                    const datePart = dateObj.toLocaleDateString(undefined, { day: '2-digit', month: 'short', year: 'numeric' });
-                    const timePart = dateObj.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', hour12: false });
-                    createdDate = `${datePart}  (${timePart})`;
+                    const timeAgoString = formatTimeAgo(dateValue);
+                    const isoDate = new Date(dateValue).toISOString();
+                    createdDate = `<time class="timeago" datetime="${isoDate}">${timeAgoString}</time>`;
                 }
+
                 const commentText = body.value || '<em>Empty comment</em>';
                 commentsHtml += `
                 <li class="arwai-anno-list-comment-item">
@@ -289,7 +343,11 @@ function updateAnnotationList(annoInstance) {
         listContainer.append(listItem);
     });
 }
-    // ### SINGLE ANNOTATION DISPLAY ###
+
+
+
+
+// ### SINGLE ANNOTATION DISPLAY ###
 function updateSingleAnnotationDisplay(annotation) {
     if (!singleAnnotationContainer.length) return;
 
@@ -315,21 +373,48 @@ function updateSingleAnnotationDisplay(annotation) {
     }).join(' ');
 
     const commentBodies = annotation.body.filter(b => b.purpose === 'commenting' || b.purpose === 'replying');
-    let commentsHtml = '<p><em>No comments.</em></p>';
+    let commentsHtml = '<p class="arwai-empty-comment"><em>Empty comment</em></p>'; // Default message
     if (commentBodies.length > 0) {
-        commentsHtml = '<ul>' + commentBodies.map(body => {
-            const creatorName = body.creator ? (body.creator.name || body.creator.displayName) : 'Unknown';
-            return `<li><p>${body.value}</p><small>By: ${creatorName}</small></li>`;
-        }).join('') + `</ul>`;
+        commentsHtml = '<ul class="arwai-anno-list-comments">'; // Add target class
+        commentBodies.forEach(body => {
+            const creator = body.creator || annotation.creator;
+            const creatorName = creator ? (creator.name || creator.displayName) : 'Unknown';
+            const dateValue = body.created || annotation.created;
+
+          let createdDate = ''; // Default to empty
+
+            if (dateValue) {
+                const timeAgoString = formatTimeAgo(dateValue);
+                const isoDate = new Date(dateValue).toISOString();
+                createdDate = `<time class="timeago" datetime="${isoDate}">${timeAgoString}</time>`;
+            }
+
+            const commentText = body.value || '<em>Empty comment</em>';
+            commentsHtml += `
+            <li class="arwai-anno-list-comment-item">
+                <p>${commentText}</p>
+                <div class="arwai-anno-list-comment-meta">
+                ${creatorName}: 
+                ${createdDate}
+                </div>
+            </li>`;
+        });
+        commentsHtml += '</ul>';
     }
+
     const newHtml = `
-        <li>
-            <div class="arwai-anno-list-header-single">
-                <span>${annotationId}
-                </span>
+        <li data-id="${annotationId}">
+            <div class="arwai-anno-list-item">
+                <div class="arwai-anno-list-header-single">
+                    <span> ${annotationId}</span>
+                </div>
+                <div>
+                    <div class="arwai-anno-list-body">${commentsHtml}</div>
+                    <div class="arwai-anno-list-footer" ${footerStyle}>
+                        ${tagsHtml}
+                    </div>
+                </div>
             </div>
-            <div class="arwai-anno-list-body">${commentsHtml}</div>
-            <div class="arwai-anno-list-footer" ${footerStyle}><strong>Tags:</strong> ${tagsHtml}</div>
             <span>
                 <button id="arwai-close-single-annotation" class="arwai-btn" title="Close">
                     <i data-feather="x"></i>    
@@ -337,6 +422,7 @@ function updateSingleAnnotationDisplay(annotation) {
             </span>  
         </li>
     `;
+    
     singleAnnotationList.html(newHtml);
 
     if (typeof feather !== 'undefined') {
@@ -366,6 +452,7 @@ function updateSingleAnnotationDisplay(annotation) {
 
 
     // Generic function to attach saving/deleting event handlers to ANY Annotorious instance
+// Generic function to attach saving/deleting event handlers to ANY Annotorious instance
     function attachEventHandlers(annoInstance) {
          annoInstance.on('createAnnotation', function(annotation) {
             // The annotation is already in the correct W3C percent format
@@ -402,7 +489,21 @@ function updateSingleAnnotationDisplay(annotation) {
 
             const idBody = annotation.body.find(b => b.purpose === 'arwai-AnnotationID');
             if (idBody) {
-                listContainer.find(`li[data-id="${idBody.value}"]`).addClass('is-highlighted');
+                // Find the corresponding list item
+                const $listItem = listContainer.find(`li[data-id="${idBody.value}"]`);
+
+                if ($listItem.length) {
+                    // Add the highlight class
+                    $listItem.addClass('is-highlighted');
+
+                    // --- NEW SCROLLING LOGIC ---
+                    if (window.innerWidth > 767) {
+                        $listItem[0].scrollIntoView({
+                            behavior: 'smooth',
+                            block: 'nearest'
+                        });
+                    }
+                }
             }
         });
 
@@ -417,11 +518,8 @@ function updateSingleAnnotationDisplay(annotation) {
             $(this).removeClass('is-highlighted').show();
             });
                 // --- remove highlight from MAIN LIST ---
-            // 1. Find the currently selected list item(s).
-            //    We search for any of the possible classes.
             const selectedListItem = listContainer.find('li.is-highlighted, li.is-important, li.is-tagged');
 
-            // 2. If an item is found, remove all styling classes.
             if (selectedListItem.length) {
                 selectedListItem.fadeOut(150, function() {
                     $(this).removeClass('is-highlighted is-important is-tagged').show();
@@ -832,15 +930,21 @@ function launchOsdViewer() {
 
     // This helper function now updates BOTH buttons at the same time
     function updateToggleUI(isVisible) {
+        // Select both toggle buttons
         const buttons = $('#arwai-toggle-annotations, #arwai-toggle-annotations-osd');
 
-        buttons.find('.feather-eye').toggle(!isVisible);
-        buttons.find('.feather-eye-off').toggle(isVisible);
+        // Loop through each button (one for the main viewer, one for OSD)
+        buttons.each(function() {
+            const button = $(this);
+            // Find the new parent wrapper for the current button
+            const wrapper = button.closest('.arwai-simple-viewer-button-wrapper');
 
-        buttons.find('.feather-eye-label').toggle(!isVisible);
-        buttons.find('.feather-eye-off-label').toggle(!isVisible);
-
+            // Now, find the icons and labels within that specific wrapper and toggle them
+            wrapper.find('.feather-eye').toggle(!isVisible);
+            wrapper.find('.feather-eye-off').toggle(isVisible);
+        });
         
+        // This part remains the same, as it modifies the button itself
         buttons.attr('title', isVisible ? 'Hide Annotations' : 'Show Annotations');
     }
 

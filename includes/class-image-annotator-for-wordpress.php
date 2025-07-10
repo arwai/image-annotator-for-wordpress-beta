@@ -459,21 +459,22 @@ public function load_public_scripts() {
                             <div id='arwai-simple-viewer-sidebar'>
 
                                 <div class='arwai-simple-viewer-buttons'>
-
+                                    <div class='arwai-simple-viewer-button-wrapper'>
                                         <button id='arwai-toggle-annotations' class='arwai-simple-toggle' title='Toggle Annotations'>
                                             <span data-feather='eye'></span>
                                             <span data-feather='eye-off' style='display:none;'></span>
-                                            <label class='feather-eye'>Show Annotations</label>
-                                            <label class='feather-eye-off' style='display:none;'>Hide Annotations</label>
+                                        </button>   
+                                            <label class='feather-eye'>Show Notes</label>
+                                            <label class='feather-eye-off' style='display:none;'>Hide Notes</label>
+                                    </div>
 
-
-                                        </button>
-
+                                        
+                                    <div class='arwai-simple-viewer-button-wrapper'>
                                         <button id='arwai-launch-osd' class='arwai-deep-zoom-button arwai-simple-toggle' title='Deep Zoom'>
                                             <span data-feather='maximize-2'></span>
-                                            <label>Open in Deep Zoom/editing</label>
                                         </button>
-
+                                        <label>Deep Zoom</label>
+                                    </div>
                                 </div>
                                 
 
@@ -578,7 +579,6 @@ public function load_public_scripts() {
         // The HTML you want to convert into a shortcode.
         $html = "
         <div id='arwai-single-annotation-container' class='arwai-single-annotation-shortcode'>
-            <h3>Selected Annotation</h3>
             <ul id='arwai-single-annotation'></ul>
         </div>
         ";
