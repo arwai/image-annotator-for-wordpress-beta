@@ -255,3 +255,49 @@ function launchOsdViewer() {
     }
 
 
+
+
+
+    <script> 
+const arwaiIdFormatter = function(annotation) { 
+const idBody = annotation.body.find(b => b.purpose === 'arwai-AnnotationID'); 
+    if (idBody) { 
+// 1. Create the SVG <foreignObject> wrapper 
+const foreignObject = document.createElementNS('http://www.w3.org/2000/svg', 'foreignObject');
+
+// 2. Create the HTML <label> element using the correct XHTML namespace 
+const label = document.createElementNS('http://www.w3.org/1999/xhtml', 'label');
+
+// 3. Set its text content (safer than innerHTML) 
+label.textContent = idBody.value;
+
+// 4. Apply browser/platform-specific styles 
+function isIOS() { return /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream; }
+
+function isMacSafari() { return /Macintosh/.test(navigator.userAgent) && /Safari/.test(navigator.userAgent) && /Apple Computer/.test(navigator.vendor) && !/Chrome/.test(navigator.userAgent) && !/Firefox/.test(navigator.userAgent); }
+
+if (isIOS() || isMacSafari()) { 
+foreignObject.setAttribute('width', '24'); 
+foreignObject.setAttribute('height', '24'); 
+foreignObject.setAttribute('style', 'transform: translate(-12px, -12px);'); 
+foreignObject.style.transformOrigin = 'center center'; 
+} 
+else { 
+foreignObject.setAttribute('width', '24'); 
+foreignObject.setAttribute('height', '24');
+label.setAttribute('width', '1'); 
+label.setAttribute('height', '1'); 
+label.setAttribute('style', 'transform: translate(-12px, -12px);'); 
+}
+
+// 5. Append the HTML label inside the SVG wrapper 
+foreignObject.appendChild(label);
+
+// 6. Return the element for Annotorious to render 
+return { element: foreignObject }; }
+
+return null; }
+    
+    
+    
+    </script>
