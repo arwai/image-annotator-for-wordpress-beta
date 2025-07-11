@@ -3,7 +3,7 @@
     Plugin Name: Image Annotator for WordPress
     Plugin URI: https://arwai.me
     Description: A WordPress plugin to manage and annotate images with Annotorious.
-    Version: 0.2.0
+    Version: 0.4.0
     Author: Arwai
 */
 
