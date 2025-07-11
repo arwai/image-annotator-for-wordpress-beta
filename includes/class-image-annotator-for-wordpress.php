@@ -42,8 +42,10 @@ class Image_Annotator_for_WordPress {
         add_filter( 'pre_option_wp_attachment_pages_enabled', '__return_true' );
 
         //add_shortcode( 'arwai_annotation_list', array( $this, 'render_annotation_list_shortcode' ) ); //annotation list shortcode
-        add_shortcode( 'arwai_single_annotation', array( $this, 'render_single_annotation_shortcode' ) ); //single annotation shortcode
-        add_shortcode( 'arwai_all_tags_list', array( $this, 'render_all_tags_list_shortcode' ) );
+        // add_shortcode( 'arwai_single_annotation', array( $this, 'render_single_annotation_shortcode' ) ); //single annotation shortcode
+        add_shortcode( 'arwai_all_tags_list', array( $this, 'render_all_tags_list_shortcode' ) ); //[arwai_all_tags_list]
+        add_shortcode( 'arwai_post_tags_list', array( $this, 'render_post_tags_list_shortcode' ) ); //[arwai_post_tags_list]
+
 
 
         // AJAX actions
@@ -464,8 +466,8 @@ public function load_public_scripts() {
                                             <span data-feather='eye'></span>
                                             <span data-feather='eye-off' style='display:none;'></span>
                                         </button>   
-                                            <label class='feather-eye'>Show Notes</label>
-                                            <label class='feather-eye-off' style='display:none;'>Hide Notes</label>
+                                            <span class='feather-eye'>Show Notes</span>
+                                            <span class='feather-eye-off' style='display:none;'>Hide Notes</span>
                                     </div>
 
                                         
@@ -473,16 +475,32 @@ public function load_public_scripts() {
                                         <button id='arwai-launch-osd' class='arwai-deep-zoom-button arwai-simple-toggle' title='Deep Zoom'>
                                             <span data-feather='maximize-2'></span>
                                         </button>
-                                        <label>Deep Zoom</label>
+                                        <span>Deep Zoom</span>
                                     </div>
+                                    
+                                    <div class='arwai-simple-viewer-button-wrapper'>
+                                        <button id='arwai-information' class='arwai-simple-toggle' title='information'>
+                                            <span data-feather='info'></span>
+                                        </button>
+                                        <span>Info</span>
+                                    </div>
+                                    
+                                    <div class='arwai-simple-viewer-button-wrapper'>
+                                        <button id='arwai-history' class='arwai-simple-toggle' title='history'>
+                                            <span data-feather='triangle'></span>
+                                        </button>
+                                        <span>History</span>
+                                    </div>
+
                                 </div>
                                 
 
-                                <div id='arwai-simple-annotation-list'>
-                                    <h3>Annotation List</h3>
-                                    <ul id='arwai-annotation-list'>
-                                    </ul>
-                                </div>
+                                    <div id='arwai-simple-annotation-list'>
+                                        <h3>Annotation List</h3>
+                                        <ul id='arwai-annotation-list'>
+                                        </ul>
+                                    </div>
+
 
                             </div>
 
@@ -575,19 +593,19 @@ public function load_public_scripts() {
      *
      * @return string The HTML for the single annotation container.
      */
-    public function render_single_annotation_shortcode() {
-        // The HTML you want to convert into a shortcode.
-        $html = "
-        <div id='arwai-single-annotation-container' class='arwai-single-annotation-shortcode'>
-            <ul id='arwai-single-annotation'></ul>
-        </div>
-        ";
-        return $html;
-    }
+    // public function render_single_annotation_shortcode() {
+    //     // The HTML you want to convert into a shortcode.
+    //     $html = "
+    //     <div id='arwai-single-annotation-container' class='arwai-single-annotation-shortcode'>
+    //         <ul id='arwai-single-annotation'></ul>
+    //     </div>
+    //     ";
+    //     return $html;
+    // }
 
 
 /**
-     * Renders a list of all unique tags from all annotations on the current post's images.
+     * Renders a list of all unique tags from all annotations on the CURRENT POST'S IMAGE
      *
      * @return string The HTML for the tags list.
      */
@@ -647,6 +665,7 @@ public function load_public_scripts() {
         $unique_tags = array_unique( $all_tags );
         sort( $unique_tags );
 
+
         // Check if tags should be linked to taxonomy archives.
         $linked_taxonomy = get_option(self::OPTION_ANNO_TAGS_LINK_TAXONOMY, 'none');
 
@@ -671,7 +690,45 @@ public function load_public_scripts() {
         return $html;
     }
 
+/**
+     * Renders a list of the CURRENT POST's tags in a custom format.
+     *
+     * @return string The HTML for the post tags list.
+     */
+    public function render_post_tags_list_shortcode() {
+        // Only run on single posts/pages.
+        if ( !is_singular() ) {
+            return '';
+        }
 
+        // Get all tag objects assigned to the current post.
+        $post_tags = get_the_tags();
+
+        // If the post has no tags, return an empty string.
+        if ( empty($post_tags) ) {
+            return '';
+        }
+
+        // Build the final HTML list, using the same classes for consistent styling.
+        $html = '<div class="arwai-all-tags-list-shortcode"><h3>Post Tags</h3><ul class="arwai-tags-list">';
+
+        // Loop through each tag object.
+        foreach ( $post_tags as $tag ) {
+            $tag_name = esc_html( $tag->name );
+            $tag_link = esc_url( get_term_link( $tag ) );
+
+            // Create the list item with a link.
+            $html .= '<li class="arwai-tag"><a href="' . $tag_link . '">' . $tag_name . '</a></li>';
+        }
+
+        $html .= '</ul></div>';
+
+        return $html;
+    }
+
+
+
+    /// METABOXES
     public function add_plugin_metaboxes() {
         $active_post_types = $this->get_active_post_types();
         if (empty($active_post_types)) return;

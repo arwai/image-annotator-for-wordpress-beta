@@ -143,7 +143,6 @@ jQuery(document).ready(function($) {
 
 
     // Simple Viewer elements
-    // const mainImage = container.find('.arwai-simple-viewer-main img');
     const prevButton = container.find('.arwai-simple-prev');
     const nextButton = container.find('.arwai-simple-next');
     const thumbnails = container.find('.arwai-simple-thumb');
@@ -153,27 +152,25 @@ jQuery(document).ready(function($) {
     const scrollRightButton = container.find('.arwai-simple-strip-scroll-right');
     const slideNav = container.find('.arwai-simple-viewer-nav');
 
-    const slickSlider = container.find('.arwai-slick-slider'); // New selector for Slick
+    const slickSlider = container.find('.arwai-slick-slider'); // selector for Slick
     let mainImage; // This will be redefined on slide change
     
     // Shared / OSD elements
     const listContainer = $('#arwai-annotation-list');
     const listContainerItem = $('#arwai-annotation-list.li[data-id]');
     
-    const listContainerWrapper = $('#arwai-simple-annotation-list'); // <-- ADD THIS LINE
+    const listContainerWrapper = $('#arwai-simple-annotation-list'); 
     const toggleButton = $('#arwai-toggle-annotations');
     
     const launchOsdButton = $('#arwai-launch-osd');
     const osdModal = $('#arwai-osd-modal');
     const osdCloseButton = $('#arwai-osd-close');
-    const osdToggleButton = $('#arwai-toggle-annotations-osd'); // <-- ADD THIS LINE
+    const osdToggleButton = $('#arwai-toggle-annotations-osd'); 
 
 
     // --- SELECTORS FOR THE SINGLE ANNOTATION DISPLAY ---
     const singleAnnotationContainer = $('#arwai-single-annotation-container');
     const singleAnnotationList = $('#arwai-single-annotation');
-
-    // const singleAnnotationListContainer = $('#arwai-annotation-list');
 
 
     // --- 2. STATE MANAGEMENT ---
@@ -261,7 +258,7 @@ jQuery(document).ready(function($) {
 
 
 
-    // Generic function to update the sidebar list from ANY Annotorious instance
+    // Generic function to Update the Sidebar List from ANY Annotorious instance
 function updateAnnotationList(annoInstance) {
     if (!listContainer.length || !annoInstance) return;
     listContainer.empty();
@@ -308,7 +305,7 @@ function updateAnnotationList(annoInstance) {
                 const dateValue = body.created || annotation.created;
 
                 let createdDate = ''; // Default to empty
-
+                    //use 'time ago function'
                 if (dateValue) {
                     const timeAgoString = formatTimeAgo(dateValue);
                     const isoDate = new Date(dateValue).toISOString();
@@ -415,12 +412,14 @@ function updateSingleAnnotationDisplay(annotation) {
                     </div>
                 </div>
             </div>
-            <span>
-                <button id="arwai-close-single-annotation" class="arwai-btn" title="Close">
-                    <i data-feather="x"></i>    
-                </button>
-            </span>  
         </li>
+
+            <div>
+                <button id="arwai-close-single-annotation" class="arwai-btn" title="Close">
+                    <i data-feather="x-circle"></i>    
+                </button>
+                
+            </div>  
     `;
     
     singleAnnotationList.html(newHtml);
