@@ -97,18 +97,33 @@
 /* ==========================================================================
    2. Main Layout
    ========================================================================== */
-/* .arwai-simple-viewer {
-    border: 2px dashed green;
-}; */
+.arwai-simple-viewer {
+    /* justify-content: center; */
+    align-items: center;
+    /* display: flex; */
+    flex-direction: column;
+    text-align: center;
+};
+
+.arwai-simple-viewer-container{
+    align-items: center;
+    flex-direction: column;
+    display: flex;
+}
 
 .arwai-simple-viewer-container2 {
-    width: 100%;
+    /* width: 100%; */
     display: flex;
-    flex-direction: row;
+    /* flex-direction: row; */
     justify-content: center;
+    align-items: center;
     flex-wrap: nowrap;
     max-height: 70vh;
     min-height: 70vh;
+    margin: 0 2rem;        
+    flex-direction: column;
+    height: auto; /* Let content determine height */
+    max-height: 100%;
 }
 
 .arwai-simple-viewer-container3 {
@@ -117,6 +132,8 @@
     display: flex;
     flex-direction: column;
     /* padding: 1.5rem; */
+    width: 100%;
+    height: 70vh;
 }
 
 #arwai-simple-viewer-main {
@@ -129,26 +146,32 @@
     max-height: 130vw;
     min-height: 300px; /* Prevents it from getting too small */
     /* padding: 1.5rem; */
-    border-right: 1px solid  var(--color-border-light);
-    border-bottom: 1px solid var(--color-border-light);
+    /* border-right: 1px solid  var(--color-border-light); */
+    /* border-bottom: 1px solid var(--color-border-light); */
+    z-index: 9999;
 }
 
 #arwai-simple-viewer-sidebar {
-    flex: 1;
-    min-width: 300px;
-    max-width: 450px;
-    background-color: var(--color-bg-secondary);
+    /* flex: 1; */
+    width: 3.5rem;
+    /* background-color: var(--color-bg-secondary);
     border-top: 1px solid var(--color-border-light);
     border-bottom: 1px solid var(--color-border-light);
-    border-right: 1px solid var(--color-border-light);
+    border-right: 1px solid var(--color-border-light); */
 
     /* Height is handled by 'align-items: stretch' on the parent */
 
     display: flex;
     flex-direction: column;
-    max-height: 70vh;
-    min-height: 70vh;
+    /* max-height: 70vh;
+    min-height: 70vh; */
+    justify-items: center;
+    justify-content: center;
+    align-content: center;
     box-sizing: border-box;
+    width:fit-content;
+    text-align: center;
+    margin: 1rem 0;
 }
 
 /* ==========================================================================
@@ -186,6 +209,7 @@
     flex-direction: column;
     justify-content: center;
     align-items: center;
+    z-index: 99999!important;
 }
 
 .arwai-slick-slide-wrapper img {
@@ -276,9 +300,9 @@
     align-items: center;
     justify-content: center;
     /* padding: 1rem; */
-    background: var(--color-bg-secondary);
-    border-bottom: 1px solid var(--color-border-light);
-    border-left: 1px solid var(--color-border-light);
+    /* background: var(--color-bg-secondary); */
+    /* border-bottom: 1px solid var(--color-border-light);
+    border-left: 1px solid var(--color-border-light); */
 
 }
 
@@ -344,44 +368,54 @@
    ========================================================================== */
 
 .arwai-simple-viewer-buttons {
-    padding: 0.5rem;
+    /* width: 100%; */
+    max-width: 100%;
+    padding: 0.4rem 1.5rem;
     display: flex;
     justify-content: center;
-    gap: 0;
+    gap:1.4rem;
     transition: var(--arwai-tag-transition-parent);
     backdrop-filter: blur(5px);
-    /* background: var(--color-bg-primary); */
+    flex-direction: row;
+    background: var(--color-bg-secondary);
+    border-radius: 50px;
+    border: 1px solid var(--color-border-medium);
+    /* align-items: center; */
+
 }
 
 .arwai-simple-viewer-button-wrapper {
-    font-size: 12px;
+    font-size: 10px;
     text-wrap: wrap;
-    width: 4.5rem;
+    /* width: 3.5rem; */
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: flex-start;
     text-align: center;
-    gap: .5rem;
+    /* gap: .5rem; */
+    flex-basis: 3.5rem;
 }
 
 .arwai-simple-viewer-buttons button {
-    background: var(--color-bg-button-primary);
+    background: transparent;
     cursor: pointer;
-    border: 1px solid var(--color-text-base);
+    /* border: 1px solid var(--color-text-base); */
+    border:none;
     display: flex;
     align-items: center;
     justify-content: center;
+    align-items: center;
     flex-direction: column;
     padding: 0;
     color: var(--color-text-base);
     cursor: pointer;
     border-radius: 50%;
-    width: 42px;
-    height: 42px;
-    font-size: 10px;
+    width: 30px;
+    height: 30px;
+    /* font-size: 10px; */
     transition: background-color 0.2s;
-    gap: 0.5rem;
+    /* gap: 0.5rem; */
     backdrop-filter: blur(5px);
     /* background: var(--color-bg-overlay-dark); */
 }
@@ -392,194 +426,32 @@
     transform: var(--arwai-tag-transition-child-scale-large);
 }
 
-/* Annotation List Container */
-#arwai-simple-annotation-list {
-        display:none;
-
-    flex-grow: 1;
-    min-height: 0;
-    overflow-y: auto;
-    direction: rtl;
-    transition: box-shadow 0.3s ease;
-    /* Reserves space for the scrollbar to prevent layout shifts */
-    scrollbar-gutter: stable;
-    /* --- Firefox Scrollbar Styling --- */
-    scrollbar-width: thin;
-    /* scrollbar-color: #888 #f1f1f1; */
-    transition: 
-        transform 0.5s cubic-bezier(0.77,0.2,0.05,1.0),
-        background 0.5s cubic-bezier(0.77,0.2,0.05,1.0),
-        opacity 0.9s ease;
-}
-
-/* #arwai-simple-annotation-list ul li:hover {
-    box-shadow: inset 0 6px 6px -6px rgba(0,0,0,0.2), 
-                inset 0 -6px 6px -6px rgba(0,0,0,0.2);
-} */
-
-/* --- WebKit (Chrome, Safari, Edge) Scrollbar Styling --- */
-#arwai-simple-annotation-list::-webkit-scrollbar {
-    width: 12px;
-}
-#arwai-simple-annotation-list::-webkit-scrollbar-track {
-    background: #f1f1f1;
-}
-#arwai-simple-annotation-list::-webkit-scrollbar-thumb {
-    background: #888;
-    border-radius: 6px;
-    border: 1px solid var(--color-border-light);
-}
-#arwai-simple-annotation-list::-webkit-scrollbar-thumb:hover {
-    background: #555;
-}
-
-/* Annotation List Content */
-#arwai-simple-annotation-list h3 {
-    text-align: center;
-    padding: 1rem;
-    font-size: .8em;
-    margin: 0;
-}
-
-#arwai-annotation-list {
-    list-style: none;
-    padding: 1rem;
-    margin: 0;
-    direction: ltr;
-}
-
-#arwai-annotation-list > li {
-    background: var(--color-bg-primary);
-    border: 1px solid var(--color-border-light);
-    border-radius: 4px;
-    padding: 1.3rem;
-    margin-bottom: 1.3rem;
-    position: relative;
-    text-align: center;
-    cursor: pointer;
-    transition: border-color 0.2s ease, box-shadow 0.2s ease;
-    
-}
 
 
-#arwai-annotation-list > li:hover,
-#arwai-annotation-list > li:hover .arwai-anno-list-header span {
-    box-shadow: var(--wp--preset--shadow--natural);
-    border: 1px solid var(--color-bg-button-primary-highlight);
-}
-.arwai-anno-list-header span {
-    position: absolute;
-    top: -1px;
-    left: 50%;
-    width: 1.2rem;
-    height: 1.2rem;
-    padding: 4px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: .8em;
-    background: white;
-    border-radius: 50%;
-    border: 1px solid var(--color-border-light);
-    transform: translate(-50%, -50%);
-}
 
-.arwai-anno-list-body ul,
-.arwai-anno-list-footer {
-    list-style: none;
-    padding: 0;
-}
 
-.arwai-anno-list-comments {
-    list-style: none;
-    padding: 0;
-    margin: 0;
-}
-
-.arwai-anno-list-comment-item {
-    padding-bottom: 0.5rem;
-    border-bottom: 1px solid var(--color-border-extra-light);
-    font-size: 1rem;
-}
-
-.arwai-anno-list-comment-item:last-child {
-    border-bottom: none;
-}
-
-.arwai-anno-list-comment-item p {
-    margin: 0.2rem;
-}
-
-.arwai-anno-list-comment-meta {
-    font-size: 0.6rem;
-    color: var(--color-text-muted);
-}
-
-.arwai-anno-list-footer {
-    font-size: 0.8rem;
-    padding-top: 0.5rem;
-    margin-top: 0.5rem;
-    border-top: 1px solid #f4f4f4;
-}
-
-.arwai-anno-list-tag {
-    font-size: 0.8rem;
-    padding: .2rem 1rem;
-    margin: 2px;
-}
-
-/** ANNOTATION LIST STATE STYLES **/
-#arwai-simple-viewer-sidebar div#arwai-simple-annotation-list ul#arwai-annotation-list > li.is-highlighted {
-    border: 2px solid var(--annotation-label-base-font-color);
-    box-shadow: var(--wp--preset--shadow--natural);
-    z-index: 1000;
-    transform: var(--arwai-tag-transition-child-scale-small);
-}
-
-#arwai-simple-viewer-sidebar div#arwai-simple-annotation-list ul#arwai-annotation-list li.is-tagged {
-    border: 2px solid var(--annotation-label-tagged-background-color);
-}
-
-#arwai-simple-viewer-sidebar div#arwai-simple-annotation-list ul#arwai-annotation-list li.is-important {
-    border: 2px solid var(--annotation-label-important-background-color);
-}
-
-#arwai-annotation-list > li.is-highlighted > div > div > span {
-    border: 2px solid var(--annotation-label-base-font-color);
-    background: var(--annotation-label-base-background-color);
-}
-
-#arwai-simple-viewer-sidebar div#arwai-simple-annotation-list ul#arwai-annotation-list li.is-tagged div.arwai-anno-list-item div.arwai-anno-list-header span {
-    border: 2px solid var(--annotation-label-tagged-background-color);
-}
-
-#arwai-simple-viewer-sidebar div#arwai-simple-annotation-list ul#arwai-annotation-list li.is-important div.arwai-anno-list-item div.arwai-anno-list-header span {
-    border: 2px solid var(--annotation-label-important-background-color);
-}
-
-.arwai-empty-comment {
-    color: var(--color-text-muted);
-}
 /* ==========================================================================
-   6. Component: Single Annotation (Mobile)
+   6. Component: Single Annotation 
    ========================================================================== */
 
+/* Show the single annotation container on mobile */
 #arwai-single-annotation-container {
-    display: none; /* Hidden by default, shown in responsive section */
-    padding: 1.5em 1em 1em 1em;
-    margin: 1em;
-    border: 2px solid var(--color-border-light);
+    display: none;
+    position: absolute;
+    top: -5rem;
+    z-index: 1000;
+    width: 90%;
+    max-width: 600px;
+    background: rgba(255, 255 , 255, 0.5);
+    backdrop-filter: blur(15px);
+    border: 1px solid transparent;
     border-radius: 8px;
-    background: #fff;
-    position: relative;
+    padding: 0.5rem;
     /* box-shadow: 
         0 1px 3px rgba(0, 0, 0, 0.24),
         0 4px 12px rgba(0, 0, 0, 0.36); */
-}
+    }
 
-#arwai-single-annotation-container h3 {
-    display: none; /* Title is redundant on mobile */
-}
 
 #arwai-single-annotation {
     list-style: none;
@@ -591,11 +463,11 @@
     text-align: center;
 }
 
-ul#arwai-single-annotation li div.arwai-anno-list-body ul li p{
+ul#arwai-single-annotation li div.arwai-anno-single-body ul li p{
     margin: 0.2rem;
 }
 
-.arwai-anno-list-header-single {
+.arwai-anno-single-header {
     position: absolute;
     top: 0;
     left: 50%;
@@ -610,8 +482,8 @@ ul#arwai-single-annotation li div.arwai-anno-list-body ul li p{
     border-radius: 50%;
 }
 
-.arwai-anno-list-body-single ul,
-.arwai-anno-list-footer-single ul {
+.arwai-anno-single-body ul,
+.arwai-anno-single-footer ul {
     list-style: none;
     padding-left: 0;
 }
@@ -620,17 +492,20 @@ ul#arwai-single-annotation li div.arwai-anno-list-body ul li p{
     float: right;
     background: none;
 	color: inherit;
-	border: none;
+	border: 1px solid transparent;
 	padding: 0;
 	font: inherit;
 	cursor: pointer;
 	outline: inherit;
 }
 
-#arwai-close-single-annotation.arwai-btn:hover {
-    transform: var(--arwai-tag-transition-child-scale-small);
+#arwai-close-single-annotation.arwai-btn svg:hover {
+    fill: var(--color-bg-button-primary-highlight);
+    transform: var(--arwai-tag-transition-child-scale-large);
+    /* transform: var(--arwai-tag-transition-child-scale-small);
     color: var(--color-bg-button-primary-highlight);
-    background-color: var(--color-bg-button-secondary-highlight);
+    border-color: var(--color-bg-button-primary-highlight); */
+    /* background-color: var(--color-bg-button-secondary-highlight); */
 }
 
 #arwai-close-single-annotation .feather-x-circle {
@@ -639,10 +514,66 @@ ul#arwai-single-annotation li div.arwai-anno-list-body ul li p{
     height: 2rem;
     width: 2rem;
     stroke-width: 1.5;
-
 }
 
-/** SINGLE ANNOTATION (MOBILE) STATE STYLES **/
+
+.arwai-anno-single-item {
+    text-align: left;
+    box-sizing: border-box;
+    padding: 8px;
+}
+
+.arwai-anno-single-body ul,
+.arwai-anno-single-footer {
+    list-style: none;
+    padding: 0;
+}
+
+.arwai-anno-single-comments {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.arwai-anno-single-comment-item {
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid var(--color-border-extra-light);
+    font-size: 1rem;
+}
+
+.arwai-anno-single-comment-item:last-child {
+    border-bottom: none;
+}
+
+.arwai-anno-single-comment-item p {
+    margin: 0.2rem;
+}
+
+.arwai-anno-single-comment-meta {
+    font-size: 0.6rem;
+    color: var(--color-text-muted);
+}
+
+.arwai-anno-single-footer {
+    font-size: 0.8rem;
+    padding-top: 0.5rem;
+    margin-top: 0.5rem;
+    /* border-top: 1px solid #f4f4f4; */
+    display: flex;
+    /* gap: 0.5rem; */
+    flex-grow: 0;
+    flex-wrap: wrap;
+}
+
+.arwai-anno-single-tag {
+    font-size: 0.8rem;
+    padding: .2rem 1rem;
+    margin: 2px;
+}
+
+
+
+/** SINGLE ANNOTATION STATE STYLES **/
 #arwai-single-annotation-container {
     border-color: var(--annotation-label-base-font-color);
 }
@@ -655,15 +586,15 @@ ul#arwai-single-annotation li div.arwai-anno-list-body ul li p{
     border-color: var(--annotation-label-important-background-color);
 }
 
-#arwai-single-annotation-container ul#arwai-single-annotation li div.arwai-anno-list-header-single {
+#arwai-single-annotation-container ul#arwai-single-annotation li div div.arwai-anno-single-header {
     border: 2px solid var(--annotation-label-base-font-color);
 }
 
-#arwai-single-annotation-container.is-tagged ul#arwai-single-annotation li div.arwai-anno-list-header-single {
+#arwai-single-annotation-container.is-tagged ul#arwai-single-annotation li div div.arwai-anno-single-header {
     border: 2px solid var(--annotation-label-tagged-background-color);
 }
 
-#arwai-single-annotation-container.is-important ul#arwai-single-annotation li div.arwai-anno-list-header-single {
+#arwai-single-annotation-container.is-important ul#arwai-single-annotation li div div.arwai-anno-single-header {
     border: 2px solid var(--annotation-label-important-background-color);
 }
 
@@ -780,6 +711,10 @@ ul#arwai-single-annotation li div.arwai-anno-list-body ul li p{
     justify-content: space-around;
     gap:.5rem;
 }
+
+
+
+
 
 /* Annotorious Overrides */
 .a9s-annotation foreignObject {
@@ -902,7 +837,8 @@ ul#arwai-single-annotation li div.arwai-anno-list-body ul li p{
 
 .arwai-all-tags-list-shortcode {
     display: flex;
-    /* justify-content: center; */
+    flex-wrap: wrap;
+    max-width: 100%;
 }
 
 /* full tag list shortcode */
@@ -911,6 +847,8 @@ ul#arwai-single-annotation li div.arwai-anno-list-body ul li p{
     justify-content: flex-start;
     gap: .6rem;
     padding: 0 .7rem;
+    flex-wrap: wrap;
+
 }
 
 /* tags in sidebar, single annotation, and full tag list shortcode */
@@ -934,6 +872,7 @@ ul#arwai-single-annotation li div.arwai-anno-list-body ul li p{
     padding: .2rem 1rem;
     /* margin: 3px; */
     transition: var(--arwai-tag-transition-parent);
+    text-wrap: nowrap;
 }
 
 .arwai-tag:hover a {
@@ -952,7 +891,7 @@ ul#arwai-single-annotation li div.arwai-anno-list-body ul li p{
     font-size: .9rem;
 }
 
-button.arwai-anno-list-tag {
+button.arwai-anno-single-tag {
     border: unset;
     background: unset;
 }
@@ -993,61 +932,18 @@ button.arwai-anno-list-tag {
    9. Responsive Layout Styles
    ========================================================================== */
 
-@media (max-width: 767px) {
-    /* Make the main layout vertical */
-    .arwai-simple-viewer-container2 {
-        flex-direction: column;
-        height: auto; /* Let content determine height */
-        max-height: 100%;
-    }
 
-    /* Viewer takes full width */
-    .arwai-simple-viewer-container3 {
-        width: 100%;
-        height: 70vh; /* Set a viewport height for the image */
-    }
-
-    /* Sidebar also takes full width and appears below */
-    #arwai-simple-viewer-sidebar {
-        width: 100%;
-        max-width: 100%;
-        border-left: none;
-        border-top: none;
-        min-height: unset;
-    }
-
-    /* Show the single annotation container on mobile */
-    #arwai-single-annotation-container {
-        display: none; /* Controlled by JS, but set base styles here */
-        position: absolute;
-        top: 10rem;
-        float: left;
-        z-index: 1000;
-        width: 80%;
-        background: rgba(255, 255 , 255, 0.5);
-        backdrop-filter: blur(15px);
-    }
-    
-    #arwai-single-annotation-container {
-        top: .5rem!important;
-    }
-
-    /* Hide the full annotation list on mobile to save space */
-    #arwai-simple-annotation-list {
-        display: none;
-    }
-}
 
 @media (orientation: landscape) and (max-width: 1200px) {
-    #arwai-simple-viewer-sidebar {
+    /* #arwai-simple-viewer-sidebar {
         min-width: unset;
         max-width: unset;
         width: 25%;
-    }
+    } */
     
     #arwai-single-annotation-container {
-        width: 25%!important;
-        padding: 1em .1em .1em .1em !important;
+        /* width: 25%!important;
+        padding: 1em .1em .1em .1em !important; */
     }
     
     #arwai-close-single-annotation {
@@ -1055,7 +951,7 @@ button.arwai-anno-list-tag {
     }
     
     #arwai-close-single-annotation.arwai-btn {
-        float: unset!important;
+        /* float: unset!important; */
     }
 }
 
@@ -1069,3 +965,4 @@ button.arwai-anno-list-tag {
 #arwai-osd-viewer:focus {
     outline: 0 !important;
 }
+

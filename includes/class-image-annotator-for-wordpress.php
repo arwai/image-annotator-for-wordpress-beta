@@ -26,6 +26,15 @@ class Image_Annotator_for_WordPress {
     const OPTION_ANNO_TAGS_LINK_TAXONOMY = 'arwai_anno_tags_link_taxonomy';
 
 
+    /**
+     * Adds the viewport meta tag to the site's <head> to ensure proper mobile scaling.
+     */
+    public function add_viewport_meta_tag() {
+        echo '<meta name="viewport" content="width=device-width, initial-scale=1" />';
+    }
+
+
+
     function __construct() {
         global $wpdb;
 
@@ -41,12 +50,8 @@ class Image_Annotator_for_WordPress {
         add_filter( 'the_content', array( $this , 'content_filter' ), 20 );
         add_filter( 'pre_option_wp_attachment_pages_enabled', '__return_true' );
 
-        //add_shortcode( 'arwai_annotation_list', array( $this, 'render_annotation_list_shortcode' ) ); //annotation list shortcode
-        // add_shortcode( 'arwai_single_annotation', array( $this, 'render_single_annotation_shortcode' ) ); //single annotation shortcode
-        add_shortcode( 'arwai_all_tags_list', array( $this, 'render_all_tags_list_shortcode' ) ); //[arwai_all_tags_list]
-        add_shortcode( 'arwai_post_tags_list', array( $this, 'render_post_tags_list_shortcode' ) ); //[arwai_post_tags_list]
-
-
+        add_shortcode( 'arwai_all_tags_list', array( $this, 'render_all_tags_list_shortcode' ) );
+        add_shortcode( 'arwai_post_tags_list', array( $this, 'render_post_tags_list_shortcode' ) );
 
         // AJAX actions
         add_action( 'wp_ajax_nopriv_arwai_anno_get', array( $this, 'anno_get') );
@@ -236,14 +241,6 @@ class Image_Annotator_for_WordPress {
                         <?php _e( 'Displays a list of all unique tags found across all annotations in the current post\'s image collection. If you have linked a taxonomy in the settings above, these tags will link to their respective archive pages.', 'arwai-image-annotator' ); ?>
                     </p>
                 </div>
-
-                <div class="arwai-shortcode-entry">
-                    <h4><?php _e( 'Single Annotation Display', 'arwai-image-annotator' ); ?></h4>
-                    <p><code>[arwai_single_annotation]</code></p>
-                    <p class="description">
-                        <?php _e( 'Creates a dedicated container to show the details of a single annotation when it is clicked on. This allows you to display the selected annotation\'s content in a different part of your page layout.', 'arwai-image-annotator' ); ?>
-                    </p>
-                </div>
             </div>
 
         </div>
@@ -424,11 +421,6 @@ public function load_public_scripts() {
                 }
                 $viewer_html = "
                 <div class='arwai-simple-viewer'>
-                    <div id='arwai-single-annotation-container'>
-                        <h3>Selected Annotation</h3>
-                        <ul id='arwai-single-annotation'></ul>
-                    </div>
-
                     <div id='" . esc_attr($container_id) . "' class='arwai-simple-viewer-container'>
 
                         <div class='arwai-simple-viewer-container2'>
@@ -436,6 +428,11 @@ public function load_public_scripts() {
                             <div class='arwai-simple-viewer-container3'>
 
                                 <div id='arwai-simple-viewer-main'>
+
+                                <div id='arwai-single-annotation-container'>
+                                    <ul id='arwai-single-annotation'></ul>
+                                </div>
+                                                                
                                     <div class='arwai-slick-slider'>
                                         " . $slides_html . "
                                     </div>
@@ -466,8 +463,8 @@ public function load_public_scripts() {
                                             <span data-feather='eye'></span>
                                             <span data-feather='eye-off' style='display:none;'></span>
                                         </button>   
-                                            <span class='feather-eye'>Show Notes</span>
-                                            <span class='feather-eye-off' style='display:none;'>Hide Notes</span>
+                                            <span class='feather-eye'>Notes</span>
+                                            <span class='feather-eye-off' style='display:none;'>Hide</span>
                                     </div>
 
                                         
@@ -475,7 +472,7 @@ public function load_public_scripts() {
                                         <button id='arwai-launch-osd' class='arwai-deep-zoom-button arwai-simple-toggle' title='Deep Zoom'>
                                             <span data-feather='maximize-2'></span>
                                         </button>
-                                        <span>Deep Zoom</span>
+                                        <span>Enlarge</span>
                                     </div>
                                     
                                     <div class='arwai-simple-viewer-button-wrapper'>
@@ -494,14 +491,6 @@ public function load_public_scripts() {
 
                                 </div>
                                 
-
-                                    <div id='arwai-simple-annotation-list'>
-                                        <h3>Annotation List</h3>
-                                        <ul id='arwai-annotation-list'>
-                                        </ul>
-                                    </div>
-
-
                             </div>
 
                         </div>
@@ -560,9 +549,6 @@ public function load_public_scripts() {
                         </div>
 
                     </div>
-
-
-
                 </div>
                     ";
                 return $viewer_html . $content;
@@ -570,38 +556,6 @@ public function load_public_scripts() {
         }
         return $content;
     }
-
-
-        /**
-     * Renders the annotation list via a shortcode.
-     *
-     * @return string The HTML for the annotation list container.
-     */
-    // public function render_annotation_list_shortcode() {
-    //     // The HTML you want to convert into a shortcode.
-    //     $html = "
-    //     <div id='arwai-annotation-list-container' class='arwai-annotation-list-shortcode'>
-    //         <ul id='arwai-annotation-list'></ul>
-    //     </div>
-    //     ";
-    //     return $html;
-    // }
-
-
-    /**
-     * Renders the single annotation via a shortcode.
-     *
-     * @return string The HTML for the single annotation container.
-     */
-    // public function render_single_annotation_shortcode() {
-    //     // The HTML you want to convert into a shortcode.
-    //     $html = "
-    //     <div id='arwai-single-annotation-container' class='arwai-single-annotation-shortcode'>
-    //         <ul id='arwai-single-annotation'></ul>
-    //     </div>
-    //     ";
-    //     return $html;
-    // }
 
 
 /**
@@ -1104,7 +1058,6 @@ function arwai_include_attachments_in_archives( $query ) {
 }
 add_action( 'pre_get_posts', 'arwai_include_attachments_in_archives' );
 
-
 /**
  * TARGETED RENDER FILTER: Modifies the Post Content block ONLY for attachments on archive pages.
  */
@@ -1137,5 +1090,4 @@ function arwai_wrap_attachment_content_in_permalink( $block_content, $block ) {
     // For all other blocks/post types, return the original, unmodified content.
     return $block_content;
 }
-add_filter( 'render_block', 'arwai_wrap_attachment_content_in_permalink', 10, 2 );
-
+add_filter( 'render_block', 'arwai_wrap_attachment_content_in_permalink', 10, 2);

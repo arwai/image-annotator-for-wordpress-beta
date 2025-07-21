@@ -62,9 +62,6 @@ const arwaiIdFormatter = function(annotation) {
  * A single, combined formatter to handle annotation styling.
  */
 const arwaiStyleFormatter = function(annotation) {
-    // DEBUG: Log to confirm the style formatter is running.
-    // console.log('arwaiStyleFormatter was called.');
-
     const isImportant = annotation.body.find(b =>
         b.purpose === 'tagging' && (b.value.toLowerCase() === 'important' || b.value.toLowerCase() === 'importante')
     );
@@ -140,8 +137,6 @@ jQuery(document).ready(function($) {
     const container = $('#' + containerId);
     if (!container.length || images.length === 0) return;
 
-
-
     // Simple Viewer elements
     const prevButton = container.find('.arwai-simple-prev');
     const nextButton = container.find('.arwai-simple-next');
@@ -156,12 +151,7 @@ jQuery(document).ready(function($) {
     let mainImage; // This will be redefined on slide change
     
     // Shared / OSD elements
-    const listContainer = $('#arwai-annotation-list');
-    const listContainerItem = $('#arwai-annotation-list.li[data-id]');
-    
-    const listContainerWrapper = $('#arwai-simple-annotation-list'); 
     const toggleButton = $('#arwai-toggle-annotations');
-    
     const launchOsdButton = $('#arwai-launch-osd');
     const osdModal = $('#arwai-osd-modal');
     const osdCloseButton = $('#arwai-osd-close');
@@ -179,56 +169,23 @@ jQuery(document).ready(function($) {
     let osdViewer = null;  // OpenSeadragon viewer instance
     let osdAnno = null;    // Annotorious instance for OSD
     let annotationsVisible = false;
-    // let annotationsLoaded = {}; 
     let highlightedAnnotation = null; 
 
 
     // --- 3. SHARED & HELPER FUNCTIONS ---
 
-    // // Converts a W3C percent annotation to a pixel-based one for the simple viewer
-    // function convertAnnotationToPixel(annotation, imageWidth, imageHeight) {
-    //     const newA = JSON.parse(JSON.stringify(annotation));
-    //     if (newA.target.selector.value && newA.target.selector.value.startsWith('xywh=percent:')) {
-    //         const coords = newA.target.selector.value.substring(13).split(',');
-    //         const percent = { x: parseFloat(coords[0]), y: parseFloat(coords[1]), w: parseFloat(coords[2]), h: parseFloat(coords[3]) };
-    //         const px = { x: (percent.x / 100) * imageWidth, y: (percent.y / 100) * imageHeight, w: (percent.w / 100) * imageWidth, h: (percent.h / 100) * imageHeight };
-    //         newA.target.selector.value = `xywh=pixel:${px.x},${px.y},${px.w},${px.h}`;
-    //     }
-    //     return newA;
-    // }
-
-    // // Converts a pixel-based annotation from the simple viewer to a W3C percent-based one for saving
-    // function convertAnnotationToPercent(annotation, imageWidth, imageHeight) {
-    //     const newA = JSON.parse(JSON.stringify(annotation));
-    //      if (newA.target.selector.value && newA.target.selector.value.startsWith('xywh=pixel:')) {
-    //         const coords = newA.target.selector.value.substring(11).split(',');
-    //         const px = { x: parseFloat(coords[0]), y: parseFloat(coords[1]), w: parseFloat(coords[2]), h: parseFloat(coords[3]) };
-    //         const percent = { x: (px.x / imageWidth) * 100, y: (px.y / imageHeight) * 100, w: (px.w / imageWidth) * 100, h: (px.h / imageHeight) * 100 };
-    //         newA.target.selector.value = `xywh=percent:${percent.x},${percent.y},${percent.w},${percent.h}`;
-    //     }
-    //     return newA;
-    // }
-
-
     // --- RESPONSIVE IMAGE LOADER FOR SLICK ---
     function handleResponsiveSliderImages() {
-        // Check if the viewport is wider than the mobile breakpoint
         if (window.innerWidth > 767) {
-            // Find all images within the slider that have a 'data-large-src' attribute
             slickSlider.find('img[data-large-src]').each(function() {
                 const $image = $(this);
                 const largeSrc = $image.data('large-src');
                 const currentSrc = $image.attr('src');
-
-                // To prevent re-downloading, only swap if the large source exists
-                // and is different from the image's current source.
                 if (largeSrc && largeSrc !== currentSrc) {
                     $image.attr('src', largeSrc);
                 }
             });
         }
-        // On mobile (< 767px), we do nothing. The images will use the default 'src'
-        // which PHP has set to the 'medium' size, achieving our goal.
     }
 
     // Run the function on initial page load
@@ -236,11 +193,11 @@ jQuery(document).ready(function($) {
 
     // Re-run the function when the window is resized to handle orientation changes or browser resizing.
     $(window).on('resize', handleResponsiveSliderImages);
+
     // Generic function to load annotations from the server into ANY Annotorious instance
     function loadAnnotations(attachmentId, annoInstance) {
         if (!annoInstance || !attachmentId) return;
         annoInstance.clearAnnotations();
-        updateAnnotationList(annoInstance);
 
         $.ajax({
             url: ajax_url,
@@ -248,64 +205,83 @@ jQuery(document).ready(function($) {
             dataType: 'json',
             success: function(annotations) {
                 if (Array.isArray(annotations)) {
-                    // The W3C adapter now handles all loading automatically
                     annoInstance.setAnnotations(annotations);
-                    updateAnnotationList(annoInstance);
                 }
             }
         });
     }
 
+    /**
+     * Manually generates a canvas snippet from a full-resolution image.
+     * @param {object} annotation - The annotation object.
+     * @param {HTMLElement} imageEl - The source image element (must be fully loaded).
+     * @returns {HTMLCanvasElement|null}
+     */
+    function createSnippet(annotation, imageEl) {
+        if (!annotation.target?.selector?.value.startsWith('xywh=percent:') || !imageEl) {
+            return null;
+        }
 
+        const coords = annotation.target.selector.value.substring(13).split(',');
+        const percent = {
+            x: parseFloat(coords[0]), y: parseFloat(coords[1]),
+            w: parseFloat(coords[2]), h: parseFloat(coords[3])
+        };
 
-    // Generic function to Update the Sidebar List from ANY Annotorious instance
-function updateAnnotationList(annoInstance) {
-    if (!listContainer.length || !annoInstance) return;
-    listContainer.empty();
-    let annotations = annoInstance.getAnnotations(); // Changed to let to allow sorting
+        const naturalW = imageEl.naturalWidth;
+        const naturalH = imageEl.naturalHeight;
 
-    if (annotations.length === 0) {
-        listContainer.html('<li style="background:transparent;">No annotations for this image.</li>');
-        return;
+        const sx = (percent.x / 100) * naturalW;
+        const sy = (percent.y / 100) * naturalH;
+        const sWidth = (percent.w / 100) * naturalW;
+        const sHeight = (percent.h / 100) * naturalH;
+
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        
+        canvas.width = sWidth;
+        canvas.height = sHeight;
+
+        ctx.drawImage(imageEl, sx, sy, sWidth, sHeight, 0, 0, sWidth, sHeight);
+        return canvas;
     }
 
-    // Sort annotations by their ID (arwai-AnnotationID)
-    annotations.sort((a, b) => {
-        const idBodyA = a.body.find(body => body.purpose === 'arwai-AnnotationID');
-        const idBodyB = b.body.find(body => body.purpose === 'arwai-AnnotationID');
 
-        // Parse the ID, defaulting to 0 if not found
-        const idA = idBodyA ? parseInt(idBodyA.value, 10) : 0;
-        const idB = idBodyB ? parseInt(idBodyB.value, 10) : 0;
+    // ### SINGLE ANNOTATION DISPLAY ###
+    function updateSingleAnnotationDisplay(annotation) {
+        if (!singleAnnotationContainer.length) return;
 
-        return idA - idB;
-    });
+        if (!annotation) {
+            singleAnnotationContainer.hide();
+            singleAnnotationList.empty();
+            return;
+        }
 
-    const tagLinks = anno_options.tagLinks || {};
-    annotations.forEach(annotation => {
         const idBody = annotation.body.find(b => b.purpose === 'arwai-AnnotationID');
         const annotationId = idBody ? idBody.value : 'N/A';
         const tagBodies = annotation.body.filter(b => b.purpose === 'tagging');
-        
-        // Add a style attribute to hide the footer if there are no tags
+
         const footerStyle = tagBodies.length === 0 ? 'style="display: none;"' : '';
         
+        const tagLinks = anno_options.tagLinks || {};
         const tagsHtml = tagBodies.map(body => {
             const tagName = body.value;
-            return tagLinks[tagName] ? `<button class="arwai-anno-list-tag arwai-tag"><a href="${tagLinks[tagName]}" class="arwai-anno-list-tag-link">${tagName}</a></button>` : `<span class=" arwai-tag">${tagName}</span>`;
+            return tagLinks[tagName] 
+                ? `<button class="arwai-anno-single-tag arwai-tag"><a href="${tagLinks[tagName]}" class="arwai-anno-single-tag-link">${tagName}</a></button>` 
+                : `<span class="arwai-anno-single-tag arwai-tag">${tagName}</span>`;
         }).join(' ');
 
         const commentBodies = annotation.body.filter(b => b.purpose === 'commenting' || b.purpose === 'replying');
-        let commentsHtml = '<p class="arwai-empty-comment"><em>Empty comment</em></p>';
+        let commentsHtml = '<p class="arwai-empty-comment"><em>Empty comment</em></p>'; // Default message
         if (commentBodies.length > 0) {
-            commentsHtml = '<ul class="arwai-anno-list-comments">';
+            commentsHtml = '<ul class="arwai-anno-single-comments">'; // Add target class
             commentBodies.forEach(body => {
                 const creator = body.creator || annotation.creator;
                 const creatorName = creator ? (creator.name || creator.displayName) : 'Unknown';
                 const dateValue = body.created || annotation.created;
 
-                let createdDate = ''; // Default to empty
-                    //use 'time ago function'
+              let createdDate = ''; // Default to empty
+
                 if (dateValue) {
                     const timeAgoString = formatTimeAgo(dateValue);
                     const isoDate = new Date(dateValue).toISOString();
@@ -314,9 +290,9 @@ function updateAnnotationList(annoInstance) {
 
                 const commentText = body.value || '<em>Empty comment</em>';
                 commentsHtml += `
-                <li class="arwai-anno-list-comment-item">
+                <li class="arwai-anno-single-comment-item">
                     <p>${commentText}</p>
-                    <div class="arwai-anno-list-comment-meta">
+                    <div class="arwai-anno-single-comment-meta">
                     ${creatorName}: 
                     ${createdDate}
                     </div>
@@ -324,157 +300,113 @@ function updateAnnotationList(annoInstance) {
             });
             commentsHtml += '</ul>';
         }
-        const listItem = `
-        <li data-id="${annotationId}">
-            <div class="arwai-anno-list-item">
-                <div class="arwai-anno-list-header"><span> ${annotationId}</span>
+
+        const newHtml = `
+            <li data-id="${annotationId}">
+                <div class="arwai-anno-single-item">
+                    <div class="arwai-anno-single-header">
+                        <span> ${annotationId}</span>
+                    </div>
+                    <div>
+                        <div class="arwai-anno-single-body">${commentsHtml}</div>
+                        <div class="arwai-anno-single-footer" ${footerStyle}>
+                            ${tagsHtml}
+                        </div>
+                    </div>
                 </div>
+            </li>
+
                 <div>
-                    <div class="arwai-anno-list-body">${commentsHtml}
-                    </div>
-                    <div class="arwai-anno-list-footer" ${footerStyle}><strong>Tags:</strong> ${tagsHtml}
-                    </div>
-                </div>
-            </div>
-        </li>`;
-        listContainer.append(listItem);
-    });
-}
+                    <button id="arwai-close-single-annotation" class="arwai-btn" title="Close">
+                        <i data-feather="x-circle"></i>    
+                    </button>
+                    
+                </div>  
+        `;
+        
+        singleAnnotationList.html(newHtml);
 
-
-
-
-// ### SINGLE ANNOTATION DISPLAY ###
-function updateSingleAnnotationDisplay(annotation) {
-    if (!singleAnnotationContainer.length) return;
-
-    if (!annotation) {
-        singleAnnotationContainer.hide();
-        singleAnnotationList.empty();
-        return;
-    }
-
-    const idBody = annotation.body.find(b => b.purpose === 'arwai-AnnotationID');
-    const annotationId = idBody ? idBody.value : 'N/A';
-    const tagBodies = annotation.body.filter(b => b.purpose === 'tagging');
-
-    // Add a style attribute to hide the footer if there are no tags
-    const footerStyle = tagBodies.length === 0 ? 'style="display: none;"' : '';
-    
-    const tagLinks = anno_options.tagLinks || {};
-    const tagsHtml = tagBodies.map(body => {
-        const tagName = body.value;
-        return tagLinks[tagName] 
-            ? `<button class="arwai-anno-list-tag arwai-tag"><a href="${tagLinks[tagName]}" class="arwai-anno-list-tag-link">${tagName}</a></button>` 
-            : `<span class="arwai-anno-list-tag arwai-tag">${tagName}</span>`;
-    }).join(' ');
-
-    const commentBodies = annotation.body.filter(b => b.purpose === 'commenting' || b.purpose === 'replying');
-    let commentsHtml = '<p class="arwai-empty-comment"><em>Empty comment</em></p>'; // Default message
-    if (commentBodies.length > 0) {
-        commentsHtml = '<ul class="arwai-anno-list-comments">'; // Add target class
-        commentBodies.forEach(body => {
-            const creator = body.creator || annotation.creator;
-            const creatorName = creator ? (creator.name || creator.displayName) : 'Unknown';
-            const dateValue = body.created || annotation.created;
-
-          let createdDate = ''; // Default to empty
-
-            if (dateValue) {
-                const timeAgoString = formatTimeAgo(dateValue);
-                const isoDate = new Date(dateValue).toISOString();
-                createdDate = `<time class="timeago" datetime="${isoDate}">${timeAgoString}</time>`;
-            }
-
-            const commentText = body.value || '<em>Empty comment</em>';
-            commentsHtml += `
-            <li class="arwai-anno-list-comment-item">
-                <p>${commentText}</p>
-                <div class="arwai-anno-list-comment-meta">
-                ${creatorName}: 
-                ${createdDate}
-                </div>
-            </li>`;
-        });
-        commentsHtml += '</ul>';
-    }
-
-    const newHtml = `
-        <li data-id="${annotationId}">
-            <div class="arwai-anno-list-item">
-                <div class="arwai-anno-list-header-single">
-                    <span> ${annotationId}</span>
-                </div>
-                <div>
-                    <div class="arwai-anno-list-body">${commentsHtml}</div>
-                    <div class="arwai-anno-list-footer" ${footerStyle}>
-                        ${tagsHtml}
-                    </div>
-                </div>
-            </div>
-        </li>
-
-            <div>
-                <button id="arwai-close-single-annotation" class="arwai-btn" title="Close">
-                    <i data-feather="x-circle"></i>    
-                </button>
-                
-            </div>  
-    `;
-    
-    singleAnnotationList.html(newHtml);
-
-    if (typeof feather !== 'undefined') {
-        feather.replace();
-    }
-
-    const style = arwaiStyleFormatter(annotation);
-    singleAnnotationContainer.removeClass(function(index, className) {
-        return (className.match(/\bis-[^\s]+/g) || []).join(' ');
-    });
-
-    if (style && style.className) {
-        const idBody = annotation.body.find(b => b.purpose === 'arwai-AnnotationID');
-        if (idBody) {
-            const specificListItem = listContainer.find(`li[data-id="${idBody.value}"]`);
-            singleAnnotationContainer.addClass('is-' + style.className);
-            specificListItem.addClass('is-' + style.className);
+        if (typeof feather !== 'undefined') {
+            feather.replace();
         }
+
+        const style = arwaiStyleFormatter(annotation);
+        singleAnnotationContainer.removeClass(function(index, className) {
+            return (className.match(/\bis-[^\s]+/g) || []).join(' ');
+        });
+
+        if (style && style.className) {
+            const idBody = annotation.body.find(b => b.purpose === 'arwai-AnnotationID');
+            if (idBody) {
+                // Corrected line:
+                const specificListItem = singleAnnotationList.find(`li[data-id="${idBody.value}"]`);
+                singleAnnotationContainer.addClass('is-' + style.className);
+                if (specificListItem.length) { // Check if the item was found before adding a class
+                    specificListItem.addClass('is-' + style.className);
+                }
+            }
+        }
+        
+        singleAnnotationContainer.show();
     }
-    
-    if (window.innerWidth < 767) {
-        singleAnnotationContainer.css('display', 'block');
-    } else {
-        singleAnnotationContainer.hide();
-    }
-}
 
 
-    // Generic function to attach saving/deleting event handlers to ANY Annotorious instance
-// Generic function to attach saving/deleting event handlers to ANY Annotorious instance
+
     function attachEventHandlers(annoInstance) {
-         annoInstance.on('createAnnotation', function(annotation) {
-            // The annotation is already in the correct W3C percent format
-            $.post(ajax_url, { action: 'arwai_anno_add', annotation: JSON.stringify(annotation) })
-                .done(function(response) {
+        annoInstance.on('createAnnotation', function(annotation) {
+            // Snippet saving logic is now conditional
+            if (annoInstance === osdAnno) {
+                const imageUrl = images[osdViewer.currentPage()].fullUrl;
+                const imageEl = new Image();
+                imageEl.crossOrigin = "Anonymous";
+                imageEl.onload = function() {
+                    const canvas = createSnippet(annotation, imageEl);
+                    if (canvas) {
+                        annotation.body.push({ type: 'TextualBody', purpose: 'arwai-snippet', value: canvas.toDataURL('image/png') });
+                    }
+                    $.post(ajax_url, { action: 'arwai_anno_add', annotation: JSON.stringify(annotation) }).done(response => {
+                        if (response.success && response.data.annotation) {
+                            annoInstance.removeAnnotation(annotation);
+                            annoInstance.addAnnotation(response.data.annotation);
+                        }
+                    });
+                };
+                imageEl.src = imageUrl;
+            } else {
+                // For simple viewer, just save without snippet
+                $.post(ajax_url, { action: 'arwai_anno_add', annotation: JSON.stringify(annotation) }).done(response => {
                     if (response.success && response.data.annotation) {
                         annoInstance.removeAnnotation(annotation);
                         annoInstance.addAnnotation(response.data.annotation);
-                        updateAnnotationList(annoInstance);
                     }
                 });
+            }
         });
 
         annoInstance.on('updateAnnotation', function(annotation) {
-            $.post(ajax_url, { action: 'arwai_anno_update', annotation: JSON.stringify(annotation), annotationid: annotation.id });
-            updateAnnotationList(annoInstance);
+            if (annoInstance === osdAnno) {
+                const imageUrl = images[osdViewer.currentPage()].fullUrl;
+                const imageEl = new Image();
+                imageEl.crossOrigin = "Anonymous";
+                imageEl.onload = function() {
+                    const snippetIndex = annotation.body.findIndex(b => b.purpose === 'arwai-snippet');
+                    if (snippetIndex > -1) annotation.body.splice(snippetIndex, 1);
+                    const canvas = createSnippet(annotation, imageEl);
+                    if (canvas) {
+                        annotation.body.push({ type: 'TextualBody', purpose: 'arwai-snippet', value: canvas.toDataURL('image/png') });
+                    }
+                    $.post(ajax_url, { action: 'arwai_anno_update', annotation: JSON.stringify(annotation), annotationid: annotation.id });
+                };
+                imageEl.src = imageUrl;
+            } else {
+                $.post(ajax_url, { action: 'arwai_anno_update', annotation: JSON.stringify(annotation), annotationid: annotation.id });
+            }
         });
 
         annoInstance.on('deleteAnnotation', function(annotation) {
             $.post(ajax_url, { action: 'arwai_anno_delete', annotation: JSON.stringify(annotation), annotationid: annotation.id });
-            updateAnnotationList(annoInstance);
         });
-
+        
         annoInstance.on('selectAnnotation', function(annotation, element) {
             if (highlightedAnnotation) {
                 highlightedAnnotation.classList.remove('is-highlighted');
@@ -482,48 +414,17 @@ function updateSingleAnnotationDisplay(annotation) {
             element.classList.add('is-highlighted');
             highlightedAnnotation = element;
             updateSingleAnnotationDisplay(annotation);
-
-            // --- SYNC TO LIST ---
-            listContainer.find('li.is-highlighted').removeClass('is-highlighted');
-
-            const idBody = annotation.body.find(b => b.purpose === 'arwai-AnnotationID');
-            if (idBody) {
-                // Find the corresponding list item
-                const $listItem = listContainer.find(`li[data-id="${idBody.value}"]`);
-
-                if ($listItem.length) {
-                    // Add the highlight class
-                    $listItem.addClass('is-highlighted');
-
-                    // --- NEW SCROLLING LOGIC ---
-                    if (window.innerWidth > 767) {
-                        $listItem[0].scrollIntoView({
-                            behavior: 'smooth',
-                            block: 'nearest'
-                        });
-                    }
-                }
-            }
         });
 
+
+
+        
         annoInstance.on('cancelSelected', function() {
             if (highlightedAnnotation) {
                 highlightedAnnotation.classList.remove('is-highlighted');
                 highlightedAnnotation = null;
             }
             updateSingleAnnotationDisplay(null);
-            // Remove highlight from list
-            listContainer.find('li.is-highlighted').fadeOut(150, function() {
-            $(this).removeClass('is-highlighted').show();
-            });
-                // --- remove highlight from MAIN LIST ---
-            const selectedListItem = listContainer.find('li.is-highlighted, li.is-important, li.is-tagged');
-
-            if (selectedListItem.length) {
-                selectedListItem.fadeOut(150, function() {
-                    $(this).removeClass('is-highlighted is-important is-tagged').show();
-                });
-            }
         });
     }
 
@@ -533,7 +434,6 @@ function updateSingleAnnotationDisplay(annotation) {
         if (activeAnno?.cancelSelected) {
             activeAnno.cancelSelected();
         }
-
         // Optional: hide the container manually
         singleAnnotationContainer.hide();
         singleAnnotationList.empty();
@@ -541,229 +441,166 @@ function updateSingleAnnotationDisplay(annotation) {
 
     
     // --- 4. SIMPLE VIEWER LOGIC ---
-    // initializer for the simple viewer
-function initSimpleAnnotorious() {
-    if (simpleAnno) {
-        simpleAnno.destroy();
-        simpleAnno = null;
-        highlightedAnnotation = null;
-    }
-
-    // Find the correct image based on whether Slick is active.
-    if (slickSlider.hasClass('slick-initialized')) {
-        mainImage = slickSlider.find('.slick-current img');
-    } else {
-        mainImage = slickSlider.find('img').first();
-    }
-    
-    if (!mainImage.length) return;
-
-    // We will wait for the 'load' event on the image. We use .one() so it only
-    // fires once per image, preventing multiple initializations.
-    mainImage.one('load', function() {
-        const annoConfig = {
-            image: this, // Use 'this' which refers to the loaded image element
-            formatters: [arwaiIdFormatter, arwaiStyleFormatter],
-            fragmentUnit: 'percent',
-            adapter: Annotorious.W3CImageAdapter,
-            readOnly: true,
-            disableEditor: true,
-            allowEmpty: anno_options.allowEmpty,
-            drawOnSingleClick: anno_options.drawOnSingleClick,
-            widgets: [
-                'COMMENT',
-                { widget: 'TAG', vocabulary: anno_options.tagVocabulary || [] }
-            ],
-            messages: {
-                "Add a comment...": "Add a comment...",
-                "Add a reply...": "Add a reply...",
-                "Add tag...": "Add tag or name...",
-                "Cancel": "Cancel",
-                "Close": "Close",
-                "Edit": "Edit",
-                "Delete": "Delete",
-                "Ok": "Ok"
-            }
-        };
-
-        // Initialize Annotorious now that the image is guaranteed to be loaded.
-        simpleAnno = Annotorious.init(annoConfig);
-
-        if (anno_options.currentUser) {
-            simpleAnno.setAuthInfo({ id: anno_options.currentUser.id, displayName: anno_options.currentUser.displayName });
+    function initSimpleAnnotorious() {
+        if (simpleAnno) {
+            simpleAnno.destroy();
+            simpleAnno = null;
+            highlightedAnnotation = null;
         }
 
-        attachEventHandlers(simpleAnno, this); // Pass 'this' as the image element
+        if (slickSlider.hasClass('slick-initialized')) {
+            mainImage = slickSlider.find('.slick-current img');
+        } else {
+            mainImage = slickSlider.find('img').first();
+        }
         
-        // Load annotations if they are supposed to be visible.
-        if (annotationsVisible) {
-            const currentAttachmentId = $(this).data('attachment-id');
-            if (currentAttachmentId) {
-                loadAnnotations(currentAttachmentId, simpleAnno);
+        if (!mainImage.length) return;
+
+        mainImage.one('load', function() {
+            const annoConfig = {
+                image: this,
+                formatters: [arwaiIdFormatter, arwaiStyleFormatter],
+                fragmentUnit: 'percent',
+                adapter: Annotorious.W3CImageAdapter,
+                readOnly: true,
+                disableEditor: true,
+                allowEmpty: anno_options.allowEmpty,
+                drawOnSingleClick: anno_options.drawOnSingleClick,
+                widgets: [ 'COMMENT', { widget: 'TAG', vocabulary: anno_options.tagVocabulary || [] } ],
+                messages: { "Add a comment...": "Add a comment...", "Add a reply...": "Add a reply...", "Add tag...": "Add tag or name...", "Cancel": "Cancel", "Close": "Close", "Edit": "Edit", "Delete": "Delete", "Ok": "Ok" }
+            };
+
+            simpleAnno = Annotorious.init(annoConfig);
+
+            if (anno_options.currentUser) {
+                simpleAnno.setAuthInfo({ id: anno_options.currentUser.id, displayName: anno_options.currentUser.displayName });
             }
-        }
 
-        // Sync the instance's visibility with the global state.
-        simpleAnno.setVisible(annotationsVisible);
-
-    }).each(function() {
-        // This part handles images that are already loaded from the browser's cache.
-        // If the image is complete, it manually triggers the 'load' event we just attached.
-        if (this.complete) {
-            $(this).trigger('load');
-        }
-    });
-}
+             attachEventHandlers(simpleAnno, this);
+            
+            if (annotationsVisible) {
+                const currentAttachmentId = $(this).data('attachment-id');
+                if (currentAttachmentId) {
+                    loadAnnotations(currentAttachmentId, simpleAnno);
+                }
+            }
+            simpleAnno.setVisible(annotationsVisible);
+        }).each(function() {
+            if (this.complete) {
+                $(this).trigger('load');
+            }
+        });
+    }
 
 
     // --- 5. OPENSEADRAGON (DEEP ZOOM) LOGIC ---
-function launchOsdViewer() {
-    // 1. Force the global visibility state to TRUE at the start.
-    annotationsVisible = true;
+    function launchOsdViewer() {
+        annotationsVisible = true;
+        osdModal.show();
+        if (simpleAnno) {
+            simpleAnno.destroy();
+            simpleAnno = null;
+        }
 
-    // Show the modal and destroy the old simple viewer instance.
-    osdModal.show();
-    if (simpleAnno) {
-        simpleAnno.destroy();
-        simpleAnno = null;
-    }
+        if (typeof feather !== 'undefined') {
+            feather.replace();
+        }
 
-    if (typeof feather !== 'undefined') {
-        feather.replace();
-    }
-
-    // Use a timeout to ensure the modal container is ready.
-    setTimeout(function() {
-        const osdTileSources = images.map(img => ({
-            type: 'image',
-            url: img.fullUrl
-        }));
-
-        osdViewer = OpenSeadragon({
-            id: 'arwai-osd-viewer',
-            showNavigator: false,
-            gestureSettingsMouse: { clickToZoom: false },
-            tileSources: osdTileSources,
-            initialPage: currentIndex,
-            sequenceMode: true,
-            showRotationControl: true,
-            minZoomLevel: 	.3,
-            maxZoomLevel: 	10,
-            drawer: "canvas",
-            // toolbar: 'arwai-openseadragon-toolbar',
-            zoomInButton:   'arwaiZoomIn',
-            zoomOutButton:  'arwaiZoomOut',
-            homeButton:     'arwaiHome',
-            nextButton:     'arwaiNext',
-            previousButton: 'arwaiPrevious',
-            rotateLeftButton:  'arwaiRotateLeft',
-            rotateRightButton: 'arwaiRotateRight',
-            // fullPageButton: 'arwaiFullpage',
-            // gestureSettingsTouch: {
-            //     pinchRotate: true
-            // }
-        });
-
-        // Fired once the OSD viewer is open and ready.
-        osdViewer.addHandler('open', function() {
-            osdAnno = OpenSeadragon.Annotorious(osdViewer, {
-                adapter: Annotorious.W3CImageAdapter,
-                fragmentUnit: 'percent',
-                formatters: [arwaiIdFormatter, arwaiStyleFormatter],
-                readOnly: anno_options.readOnly || !anno_options.currentUser,
-                allowEmpty: anno_options.allowEmpty,
-                widgets: ['COMMENT', { widget: 'TAG', vocabulary: anno_options.tagVocabulary || [] }]
+        setTimeout(function() {
+            const osdTileSources = images.map(img => ({ type: 'image', url: img.fullUrl }));
+            osdViewer = OpenSeadragon({
+                id: 'arwai-osd-viewer',
+                showNavigator: false,
+                gestureSettingsMouse: { clickToZoom: false },
+                tileSources: osdTileSources,
+                initialPage: currentIndex,
+                sequenceMode: true,
+                showRotationControl: true,
+                minZoomLevel:   .3,
+                maxZoomLevel:   10,
+                drawer: "canvas",
+                zoomInButton:   'arwaiZoomIn',
+                zoomOutButton:  'arwaiZoomOut',
+                homeButton:     'arwaiHome',
+                nextButton:     'arwaiNext',
+                previousButton: 'arwaiPrevious',
+                rotateLeftButton:  'arwaiRotateLeft',
+                rotateRightButton: 'arwaiRotateRight',
             });
 
-            if (anno_options.currentUser) {
-                osdAnno.setAuthInfo({ id: anno_options.currentUser.id, displayName: anno_options.currentUser.displayName });
-            }
+            osdViewer.addHandler('open', function() {
+                osdAnno = OpenSeadragon.Annotorious(osdViewer, {
+                    adapter: Annotorious.W3CImageAdapter,
+                    fragmentUnit: 'percent',
+                    formatters: [arwaiIdFormatter, arwaiStyleFormatter],
+                    readOnly: anno_options.readOnly || !anno_options.currentUser,
+                    allowEmpty: anno_options.allowEmpty,
+                    widgets: ['COMMENT', { widget: 'TAG', vocabulary: anno_options.tagVocabulary || [] }]
+                });
 
-            attachEventHandlers(osdAnno);
-
-            // 2. Explicitly set the new OSD instance to be visible.
-            osdAnno.setVisible(true);
-            
-            // 3. Update the UI buttons and annotation list to match the "visible" state.
-            updateToggleUI(true);
-            if (listContainerWrapper.length) listContainerWrapper.show();
-
-            // 4. Load the annotations for the starting image.
-            const currentAttachmentId = images[currentIndex].post_id;
-            if (currentAttachmentId) {
-                loadAnnotations(currentAttachmentId, osdAnno);
-            }
-        });
-
-        // Add other event handlers for page changes and rotation.
-        osdViewer.addHandler('page', function(event) {
-            currentIndex = event.page;
-            const attachmentId = images[currentIndex].post_id;
-
-            if (osdAnno) {
-                osdAnno.clearAnnotations();
-                updateAnnotationList(osdAnno); 
-            }
-            
-            if (annotationsVisible && osdAnno) {
-                loadAnnotations(attachmentId, osdAnno);
-            }
-        });
-
-        osdViewer.addHandler('rotate', function(event) {
-            const { degrees } = event;
-            const labels = document.querySelectorAll('#arwai-osd-viewer .a9s-annotation foreignObject');
-            labels.forEach(label => {
-                const existingTransform = label.style.transform.replace(/rotate\([^)]+\)/, '').trim();
-                label.style.transform = `${existingTransform} rotate(${-degrees}deg)`;
+                if (anno_options.currentUser) {
+                    osdAnno.setAuthInfo({ id: anno_options.currentUser.id, displayName: anno_options.currentUser.displayName });
+                }
+                attachEventHandlers(osdAnno);
+                osdAnno.setVisible(true);
+                updateToggleUI(true);
+                const currentAttachmentId = images[currentIndex].post_id;
+                if (currentAttachmentId) {
+                    loadAnnotations(currentAttachmentId, osdAnno);
+                }
             });
-        });
 
-    }, 30);
-}
+            osdViewer.addHandler('page', function(event) {
+                currentIndex = event.page;
+                const attachmentId = images[currentIndex].post_id;
+                if (osdAnno) {
+                    osdAnno.clearAnnotations();
+                }
+                if (annotationsVisible && osdAnno) {
+                    loadAnnotations(attachmentId, osdAnno);
+                }
+            });
+
+            osdViewer.addHandler('rotate', function(event) {
+                const { degrees } = event;
+                const labels = document.querySelectorAll('#arwai-osd-viewer .a9s-annotation foreignObject');
+                labels.forEach(label => {
+                    const existingTransform = label.style.transform.replace(/rotate\([^)]+\)/, '').trim();
+                    label.style.transform = `${existingTransform} rotate(${-degrees}deg)`;
+                });
+            });
+
+        }, 30);
+    }
 
     function closeOsdViewer() {
         if (osdViewer) {
-            // Get the correct page before destroying
             const lastOsdPage = osdViewer.currentPage();
-            currentIndex = lastOsdPage; // Update global index
+            currentIndex = lastOsdPage;
             osdViewer.destroy();
             osdViewer = null;
             osdAnno = null;
         }
         osdModal.hide();
-        updateView(currentIndex); // Relaunch the simple viewer on the correct image
-
-        // After closing the modal, we re-initialize the simple viewer and
-        // immediately reload its annotations if they were supposed to be visible.
+        updateView(currentIndex);
         setTimeout(() => {
-            initSimpleAnnotorious(); // This creates a new, empty simpleAnno instance.
-
-            // If annotations were visible before, reload them into the new instance.
+            initSimpleAnnotorious();
             if (annotationsVisible && simpleAnno) {
                 const currentAttachmentId = slickSlider.find('.slick-current img').data('attachment-id');
                 if (currentAttachmentId) {
-                    console.log('Restoring annotations to simple viewer...');
                     loadAnnotations(currentAttachmentId, simpleAnno);
                 }
             }
-        }, 50); // A small delay ensures the viewer is ready.
+        }, 50);
     }
 
-
-
     // --- 6. EVENT BINDING & INITIALIZATION ---
-
-    // Helper function to change the main slide (only used in slider mode)
     function updateView(index) {
         if (singleAnnotationContainer.length) singleAnnotationContainer.hide();
         if (index < 0 || index >= images.length) return;
-        
-        // This line was missing from your code
         slickSlider.slick('slickGoTo', index); 
     }
 
-    // Helper function to show/hide thumbnail strip scroll arrows
     function updateArrowVisibility() {
         if (!strip.length || !scrollLeftButton.length || !scrollRightButton.length) return;
         const canScroll = strip[0].scrollWidth > strip[0].clientWidth;
@@ -771,145 +608,78 @@ function launchOsdViewer() {
         scrollRightButton.toggle(canScroll);
     }
 
-// --- Main Initialization Logic ---
-// Check the number of images to decide which mode to use.
+
+    // --- Main Initialization Logic ---
+    // Check the number of images to decide which mode to use.
     if (images.length > 1) {
-
-        // --- SLIDER MODE (for multiple images) ---
-
-        // 1. Get the target image ID from the URL to determine the starting slide.
         const urlParams = new URLSearchParams(window.location.search);
         const targetImageId = urlParams.get('arwai_image_id');
-        let initialSlideIndex = 0; // Default to the first slide (index 0).
-
+        let initialSlideIndex = 0;
         if (targetImageId && Array.isArray(images)) {
             const foundIndex = images.findIndex(image => image.post_id === parseInt(targetImageId, 10));
             if (foundIndex !== -1) {
                 initialSlideIndex = foundIndex;
             }
         }
-
-        // 2. Initialize Slick Slider using the 'initialSlide' option.
         slickSlider.slick({
             dots: false,
             arrows: false,
             infinite: true,
             speed: 50,
-            cssEase: 'linear', //'cubic-bezier(0.645, 0.045, 0.355, 1)',  Custom easing
+            cssEase: 'linear',
             slidesToShow: 1,
             adaptiveHeight: true,
             swipeToSlide: true,
             touchThreshold: 10,
-            initialSlide: initialSlideIndex // This reliably sets the starting slide
+            initialSlide: initialSlideIndex
         });
-
-        // Event handler for AFTER a slide changes
         slickSlider.on('afterChange', function(event, slick, newIndex) {
             currentIndex = newIndex;
             currentIndexSpan.text(currentIndex + 1);
             thumbnails.removeClass('active').eq(currentIndex).addClass('active');
             if (singleAnnotationContainer.length) singleAnnotationContainer.hide();
-            initSimpleAnnotorious(); // Re-init Annotorious on the new slide
+            initSimpleAnnotorious();
         });
-
-        // Make buttons control the slider
         prevButton.on('click', () => slickSlider.slick('slickPrev'));
         nextButton.on('click', () => slickSlider.slick('slickNext'));
-        
-        // Make thumbnails control the slider
         strip.on('click', '.arwai-simple-thumb', function() {
             const newIndex = $(this).data('index');
             slickSlider.slick('slickGoTo', newIndex);
         });
-        
-        // Make the left/right scroll buttons control the strip
         scrollLeftButton.on('click', function() {
             strip.animate({ scrollLeft: '-=200' }, 300);
         });
-
         scrollRightButton.on('click', function() {
             strip.animate({ scrollLeft: '+=200' }, 300);
         });
-
-        // Initial setup for slider view
         updateArrowVisibility();
         $(window).on('resize', updateArrowVisibility);
-
-        // --- NEW FIX ---
-        // Manually set the initial state for the counter and thumbnails to sync with the initial slide.
         currentIndex = initialSlideIndex;
-        currentIndexSpan.text(currentIndex + 1); // Sync counter
-        thumbnails.removeClass('active').eq(currentIndex).addClass('active'); // Sync active thumbnail
-        initSimpleAnnotorious(); // Initialize annotorious for the correct slide
+        currentIndexSpan.text(currentIndex + 1);
+        thumbnails.removeClass('active').eq(currentIndex).addClass('active');
+        initSimpleAnnotorious();
+    } else {
+        prevButton.hide();
+        nextButton.hide();
+        strip.hide();
+        scrollLeftButton.hide();
+        scrollRightButton.hide();
+        currentIndexSpan.parent().hide();
+        slideNav.hide();
+        initSimpleAnnotorious();
+    }
 
-        } else {
-
-            // --- SINGLE IMAGE MODE ---
-
-            // Hide slider-specific controls since they are not needed
-            prevButton.hide();
-            nextButton.hide();
-            strip.hide(); // Hides the entire reference strip
-            scrollLeftButton.hide();
-            scrollRightButton.hide();
-            currentIndexSpan.parent().hide(); // Hides the "1 / 1" counter
-            slideNav.hide();
-
-            // Initialize Annotorious directly on the single image
-            initSimpleAnnotorious();
-        }
-
-        singleAnnotationContainer.on('click', '#arwai-close-single-annotation', function() {
-            // Find out which viewer is active
-            const activeAnno = osdViewer ? osdAnno : simpleAnno;
-            
-            // Tell the active viewer to cancel the selection
-            if (activeAnno && typeof activeAnno.cancelSelected === 'function') {
-                activeAnno.cancelSelected();
-            }
-        }
-);
-
-
-
-    // --- SHARED EVENT HANDLERS (Used in BOTH modes) ---
-
-// Final click handler for the annotation list items
-    listContainer.on('click', 'li[data-id]', function(event) {
-        event.stopPropagation();
-
+    singleAnnotationContainer.on('click', '#arwai-close-single-annotation', function() {
         const activeAnno = osdViewer ? osdAnno : simpleAnno;
-        if (!activeAnno) return;
-
-        const clickedId = $(this).data('id').toString();
-        const annotationToSelect = activeAnno.getAnnotations().find(anno => {
-            const idBody = anno.body.find(b => b.purpose === 'arwai-AnnotationID');
-            return idBody && idBody.value === clickedId;
-        });
-
-        if (annotationToSelect) {
-            // This selects the annotation on the image
-            activeAnno.selectAnnotation(annotationToSelect);
-
-            // --- MANUAL UI UPDATES ---
-            // Since the event doesn't fire, we do its work here.
-
-            // 1. Update the list item highlighting
-            listContainer.find('li.is-highlighted').removeClass('is-highlighted');
-            $(this).addClass('is-highlighted'); // 'this' is the <li> that was clicked
-
-            // 2. Update the separate "single annotation" display
-            updateSingleAnnotationDisplay(annotationToSelect);
+        if (activeAnno && typeof activeAnno.cancelSelected === 'function') {
+            activeAnno.cancelSelected();
         }
     });
-    // The shared click handler for toggling annotation visibility
+
     function handleAnnotationToggle() {
         annotationsVisible = !annotationsVisible;
-        if (listContainerWrapper.length) listContainerWrapper.toggle(annotationsVisible);
-
         const activeAnno = osdViewer ? osdAnno : simpleAnno;
         if (!activeAnno) return;
-
         if (annotationsVisible && activeAnno.getAnnotations().length === 0) {
             let currentAttachmentId;
             if (osdViewer) {
@@ -921,66 +691,31 @@ function launchOsdViewer() {
                 loadAnnotations(currentAttachmentId, activeAnno);
             }
         }
-
         activeAnno.setVisible(annotationsVisible);
         updateToggleUI(annotationsVisible);
     }
 
-
-    // This helper function now updates BOTH buttons at the same time
     function updateToggleUI(isVisible) {
-        // Select both toggle buttons
         const buttons = $('#arwai-toggle-annotations, #arwai-toggle-annotations-osd');
-
-        // Loop through each button (one for the main viewer, one for OSD)
         buttons.each(function() {
             const button = $(this);
-            // Find the new parent wrapper for the current button
-            const wrapper = button.closest('.arwai-simple-viewer-button-wrapper');
+            const wrapper1 = button.closest('.arwai-simple-viewer-button-wrapper') 
+            const wrapper2 = button.closest('.arwai-osd-toolbar-button-wrapper');
+            wrapper1.find('.feather-eye').toggle(!isVisible);
+            wrapper1.find('.feather-eye-off').toggle(isVisible);
 
-            // Now, find the icons and labels within that specific wrapper and toggle them
-            wrapper.find('.feather-eye').toggle(!isVisible);
-            wrapper.find('.feather-eye-off').toggle(isVisible);
+            wrapper2.find('.feather-eye').toggle(!isVisible);
+            wrapper2.find('.feather-eye-off').toggle(isVisible);
         });
-        
-        // This part remains the same, as it modifies the button itself
         buttons.attr('title', isVisible ? 'Hide Annotations' : 'Show Annotations');
     }
-
     
-    // Bind the new shared handler to both buttons
     toggleButton.on('click', handleAnnotationToggle);
     osdToggleButton.on('click', handleAnnotationToggle);
 
-    // --- 7. OSD VIEWER LAUNCH & CLOSE ---
     launchOsdButton.on('click', launchOsdViewer);
     osdCloseButton.on('click', closeOsdViewer);
 
-
-    // --- DYNAMIC INITIAL SLIDE LOGIC ---
-    // Get the image ID from the URL query string.
-    const urlParams = new URLSearchParams(window.location.search);
-    const targetImageId = urlParams.get('arwai_image_id');
-
-    let initialSlideIndex = 0; // Default to the first slide (index 0)
-    // If an image ID is present in the URL, find its corresponding index.
-    if (targetImageId && Array.isArray(images)) {
-        // The targetImageId from the URL is a string, so parse it to an integer for comparison.
-        const foundIndex = images.findIndex(image => image.post_id === parseInt(targetImageId, 10));
-
-        // If the image was found in the array, update the initial index.
-        if (foundIndex !== -1) {
-            initialSlideIndex = foundIndex;
-        }
-    }
-    // Initial load and setup
-    // updateView(initialSlideIndex);
-
-    //initialize reference strip arrows visibility function
-    updateArrowVisibility();
-      $(window).on('resize', updateArrowVisibility);
-      
-    //   inititalize feather icons
     if (typeof feather !== 'undefined') {
         feather.replace();
     }
