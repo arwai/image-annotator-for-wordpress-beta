@@ -1,0 +1,84 @@
+.arwai-osd-toolbar-container {
+    position: absolute;
+    top: 50px;
+    left: 50%;
+    transform: translateX(-50%);
+    padding: 0.4rem 1.5rem;
+    backdrop-filter: blur(5px);
+    background: var(--color-bg-overlay-dark);
+    border-radius: 50px;
+    z-index: 10000;
+    display:flex;
+    align-items: center;
+    justify-content: space-between;
+    gap:1.4rem;
+}
+
+#arwai-openseadragon-toolbar-other {
+    position: absolute;
+    top: 50px;
+    left: 85%;
+    padding: 0.4rem 1rem;
+    backdrop-filter: blur(5px);
+    background: var(--color-bg-overlay-dark);
+    border-radius: 50px;
+    z-index: 10000;
+    display:flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0;
+}
+
+#arwai-openseadragon-toolbar button,
+#arwai-openseadragon-toolbar-other button {
+    background: transparent;
+    padding: 0 ;
+    border: none;
+    color: white;
+    cursor: pointer;
+    border-radius: 50%;
+    width: 30px;
+    height: 30px;
+    display: flex!important;
+    justify-content: center;
+    align-items: center;
+    flex-direction: column;
+}
+
+#arwai-openseadragon-toolbar button:hover,
+#arwai-openseadragon-toolbar-other button:hover {
+    background-color: var(--color-bg-button-secondary-highlight); /* rgba(255, 255, 255, 0.2) */
+    color: var(--color-bg-button-primary-highlight);
+    transform: var(--arwai-tag-transition-child-scale-large);
+}
+.arwai-osd-toolbar-button-wrapper {
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    font-size: 10px;
+    color: white;
+}
+
+#arwaiHomeWrapper {
+    border-left: 1px solid rgba(128, 128, 128, 0.201)!important;
+    border-right: 1px solid rgba(128, 128, 128, 0.201)!important;
+    padding-left: 1rem;
+    padding-right: 1rem;
+}
+
+.arwai-zoom-buttons {
+    border-right: 1px solid rgba(128, 128, 128, 0.201)!important;
+    padding-right: .5rem;
+}
+
+.arwai-rotate-buttons {
+    padding-left: .5rem;
+}
+
+.arwai-zoom-buttons,
+.arwai-rotate-buttons {
+    display: flex;
+    justify-content: space-around;
+    gap:.5rem;
+}

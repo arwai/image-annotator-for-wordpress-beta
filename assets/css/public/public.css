@@ -966,3 +966,95 @@ button.arwai-anno-single-tag {
     outline: 0 !important;
 }
 
+
+@media print {
+    #header,
+    #footer,
+    #nav {
+        display: none !important;
+    }
+    #arwai-simple-viewer-sidebar{
+        display:none;
+    }
+    .arwai-simple-viewer-container{
+        border: 3px solid red;
+    }
+
+    /* Reset transforms and layout quirks */
+    .slick-track,
+    .slick-list {
+        transform: none !important;
+        overflow: visible !important;
+        width: 100% !important;
+    }
+
+    .slick-slide {
+        display: none !important;
+        float: none !important;
+        width: auto !important;
+    }
+
+    .slick-slide.slick-current {
+        display: block !important;
+        margin: 0 auto !important;
+        text-align: center !important;
+        transform: none !important;
+    }
+
+    .slick-slide.slick-current img {
+        display: block;
+        margin: 0 auto;
+        max-width: 66%;
+        height: auto;
+    }
+
+    /* Hide navigation UI */
+    .slick-arrow,
+    .slick-dots {
+        display: none !important;
+    }
+    /* Optional: remove page margins for full bleed */
+    /* @page {
+        margin: 0;
+    } */
+}
+
+/* ==========================================================================
+   11. Popups
+   ========================================================================== */
+
+.popup-container {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 400px;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.5);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+}
+
+.popup-content {
+    background-color: white;
+    /* padding: 2rem; */
+    border-radius: 5px;
+    box-shadow: var(--wp--preset--shadow--natural);
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    justify-content: end;
+    font-size: 0.8rem;
+}
+
+.popup-content div{
+    padding: 2rem 2rem 0 2rem;
+}
+.popup-content svg.feather-maximize-2 {
+    height: 0.8rem;
+}
+.popup-content .button-wrapper {
+    align-self: flex-end;
+    padding: 0.5rem;
+}

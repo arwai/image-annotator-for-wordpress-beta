@@ -439,6 +439,55 @@ jQuery(document).ready(function($) {
         singleAnnotationList.empty();
     });
 
+        // ---  Nav button Popup LOGIC ---
+
+        // Select the elements using jQuery selectors
+    const infoButton = $('#arwai-information');
+    const infoPopup = $('#info-popup');
+    const closeButton = $('#close-info-popup');
+
+    // Show the popup when the info button is clicked
+    infoButton.on('click', function() {
+        infoPopup.css('display', 'flex'); // Use .css() to set display to flex
+    });
+
+    // Hide the popup when the close button is clicked
+    closeButton.on('click', function() {
+        infoPopup.hide();
+    });
+
+    // Optional: Hide the popup when clicking on the background
+    infoPopup.on('click', function(event) {
+        // If the click target is the popup container itself (the background)
+        if (event.target === this) {
+            $(this).hide();
+        }
+    });
+
+    //popup 2
+           // Select the elements using jQuery selectors
+    const infoButton2 = $('#arwai-history');
+    const infoPopup2 = $('#info-popup-2');
+    const closeButton2 = $('#close-info-popup-2');
+
+    // Show the popup when the info button is clicked
+    infoButton2.on('click', function() {
+        infoPopup2.css('display', 'flex'); // Use .css() to set display to flex
+    });
+
+    // Hide the popup when the close button is clicked
+    closeButton2.on('click', function() {
+        infoPopup2.hide();
+    });
+
+    // Optional: Hide the popup when clicking on the background
+    infoPopup2.on('click', function(event) {
+        // If the click target is the popup container itself (the background)
+        if (event.target === this) {
+            $(this).hide();
+        }
+    });
+    
     
     // --- 4. SIMPLE VIEWER LOGIC ---
     function initSimpleAnnotorious() {
@@ -608,6 +657,7 @@ jQuery(document).ready(function($) {
         scrollRightButton.toggle(canScroll);
     }
 
+    
 
     // --- Main Initialization Logic ---
     // Check the number of images to decide which mode to use.

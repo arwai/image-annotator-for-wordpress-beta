@@ -475,19 +475,40 @@ public function load_public_scripts() {
                                         <span>Enlarge</span>
                                     </div>
                                     
-                                    <div class='arwai-simple-viewer-button-wrapper'>
-                                        <button id='arwai-information' class='arwai-simple-toggle' title='information'>
-                                            <span data-feather='info'></span>
-                                        </button>
-                                        <span>Info</span>
+                            <div class='arwai-simple-viewer-button-wrapper'>
+                                <button id='arwai-information' class='arwai-simple-toggle' title='information'>
+                                    <span data-feather='info'></span>
+                                </button>
+                                <span>Info</span>
+
+                                <div id='info-popup' class='popup-container' style='display: none;'>
+                                    <div class='popup-content'>
+                                        <div>To add, edit or delete annotations, click on enlarge <span data-feather='maximize-2'></span> to open the Openseadragon viewer. <em>Click</em> or <em>tap</em> the annotation to edit. Hold the SHIFT key while clicking and dragging the mouse to create a new annotation.</div>
+                                        <div class='button-wrapper'>
+                                            <button id='close-info-popup' title='Close info Popup'> <span data-feather='x-circle'></span></button>
+                                        </div>       
                                     </div>
+                                </div>
+
+                            </div>
                                     
-                                    <div class='arwai-simple-viewer-button-wrapper'>
-                                        <button id='arwai-history' class='arwai-simple-toggle' title='history'>
-                                            <span data-feather='triangle'></span>
-                                        </button>
-                                        <span>History</span>
-                                    </div>
+<div class='arwai-simple-viewer-button-wrapper' style='display:none'>
+    <button id='arwai-history' class='arwai-simple-toggle' title='history'>
+        <span data-feather='triangle'></span>
+    </button>
+    <span>History</span>
+
+    <div id='info-popup-2' class='popup-container' style='display: none;'>
+        <div class='popup-content'>
+            <div>Coming soon...</div>
+            <div class='button-wrapper'>
+                <button id='close-info-popup-2' title='Close History Popup'> <span data-feather='x-circle'></span></button>
+            </div>       
+        </div>
+    </div>
+
+</div>
+
 
                                 </div>
                                 
