@@ -675,7 +675,7 @@ jQuery(document).ready(function($) {
             dots: false,
             arrows: false,
             infinite: true,
-            speed: 50,
+            speed: 150,
             cssEase: 'linear',
             slidesToShow: 1,
             adaptiveHeight: true,

@@ -1039,6 +1039,7 @@ button.arwai-anno-single-tag {
 .popup-content {
     background-color: white;
     /* padding: 2rem; */
+    border: 1px solid var(--color-border-light);
     border-radius: 5px;
     box-shadow: var(--wp--preset--shadow--natural);
     text-align: center;
@@ -1049,7 +1050,7 @@ button.arwai-anno-single-tag {
 }
 
 .popup-content div{
-    padding: 2rem 2rem 0 2rem;
+    padding: 1rem 1rem 0 1rem;
 }
 .popup-content svg.feather-maximize-2 {
     height: 0.8rem;
