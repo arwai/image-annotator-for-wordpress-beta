@@ -53,6 +53,7 @@ function arwai_image_annotator_activate() {
         annotation_id_from_annotorious VARCHAR(255) NOT NULL,
         attachment_id BIGINT(20) UNSIGNED NOT NULL,
         annotation_data LONGTEXT NOT NULL,
+        annotation_snippet_data_url LONGTEXT,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
         PRIMARY KEY (id),

@@ -101,4 +101,88 @@ jQuery(document).ready(function($) {
             $hiddenField.val(JSON.stringify(ids)).trigger('change');
         }
     }
+
+
+
+    // --- NEW: Snippet Regeneration Logic ---
+    const regenButton = $('#arwai-regenerate-snippets-btn');
+    const statusContainer = $('#arwai-regeneration-status');
+    const nonceField = $('#arwai_regenerate_snippets_nonce_field');
+
+    regenButton.on('click', function() {
+        if (!confirm('Are you sure you want to regenerate all annotation snippets? This action cannot be undone. Please ensure you have a database backup.')) {
+            return;
+        }
+
+        // Provide immediate feedback to the user
+        regenButton.prop('disabled', true);
+        statusContainer.css('border-left-color', '#0073aa').html('Processing... Please do not close this page. This may take several minutes.').show();
+
+        // Make the AJAX call
+        $.ajax({
+            url: ajaxurl, // ajaxurl is a global variable defined by WordPress
+            type: 'POST',
+            data: {
+                action: 'arwai_regenerate_snippets',
+                nonce: nonceField.val()
+            },
+            success: function(response) {
+                if (response.success) {
+                    statusContainer.css('border-left-color', '#46b450').html('<strong>Success!</strong><br>' + response.data.message);
+                } else {
+                    statusContainer.css('border-left-color', '#dc3232').html('<strong>Error:</strong><br>' + response.data.message);
+                }
+            },
+            error: function(xhr) {
+                const errorMsg = xhr.responseText ? xhr.responseText : 'An unknown AJAX error occurred.';
+                statusContainer.css('border-left-color', '#dc3232').html('<strong>Critical Error:</strong><br>Could not complete the request. ' + errorMsg);
+            },
+            complete: function() {
+                // Re-enable the button once the process is finished
+                regenButton.prop('disabled', false);
+            }
+        });
+    });
+
+        // --- NEW: Snippet Cleanup Logic ---
+    const cleanButton = $('#arwai-clean-snippets-btn');
+    const cleanStatusContainer = $('#arwai-cleanup-status');
+    const cleanNonceField = $('#arwai_clean_snippets_nonce_field');
+
+    cleanButton.on('click', function() {
+        if (!confirm('ARE YOU ABSOLUTELY SURE?\n\nThis will permanently delete snippet data from the annotation_data column. This cannot be undone. Only proceed if you have a working database backup.')) {
+            return;
+        }
+
+        // Provide immediate feedback
+        cleanButton.prop('disabled', true);
+        cleanStatusContainer.css('border-left-color', '#0073aa').html('Cleaning... Please do not close this page.').show();
+
+        // Make the AJAX call
+        $.ajax({
+            url: ajaxurl,
+            type: 'POST',
+            data: {
+                action: 'arwai_clean_old_snippets',
+                nonce: cleanNonceField.val()
+            },
+            success: function(response) {
+                if (response.success) {
+                    cleanStatusContainer.css('border-left-color', '#46b450').html('<strong>Success!</strong><br>' + response.data.message);
+                } else {
+                    cleanStatusContainer.css('border-left-color', '#dc3232').html('<strong>Error:</strong><br>' + response.data.message);
+                }
+            },
+            error: function() {
+                cleanStatusContainer.css('border-left-color', '#dc3232').html('<strong>Critical Error:</strong><br>The cleanup process could not be completed due to a server error.');
+            },
+            complete: function() {
+                // Keep the button disabled after a successful run to prevent re-running
+                if (!cleanButton.hasClass('button-success')) {
+                     cleanButton.text('Cleanup Complete').addClass('button-success');
+                }
+            }
+        });
+    });
+    
 });

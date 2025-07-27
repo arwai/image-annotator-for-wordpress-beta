@@ -248,6 +248,7 @@ jQuery(document).ready(function($) {
 
 
     // ### SINGLE ANNOTATION DISPLAY ###
+    
     function updateSingleAnnotationDisplay(annotation) {
         if (!singleAnnotationContainer.length) return;
 
@@ -769,4 +770,47 @@ jQuery(document).ready(function($) {
     if (typeof feather !== 'undefined') {
         feather.replace();
     }
+
+
+
+
+    // --- NEW: Snippet Regeneration Logic ---
+    const regenButton = $('#arwai-regenerate-snippets-btn');
+    const statusContainer = $('#arwai-regeneration-status');
+    const nonceField = $('#arwai_regenerate_snippets_nonce_field');
+
+    regenButton.on('click', function() {
+        if (!confirm('Are you sure you want to regenerate all annotation snippets? This action cannot be undone. Please ensure you have a database backup.')) {
+            return;
+        }
+
+        // Provide immediate feedback to the user
+        regenButton.prop('disabled', true);
+        statusContainer.css('border-left-color', '#0073aa').html('Processing... Please do not close this page. This may take several minutes.').show();
+
+        // Make the AJAX call
+        $.ajax({
+            url: ajaxurl, // ajaxurl is a global variable defined by WordPress
+            type: 'POST',
+            data: {
+                action: 'arwai_regenerate_snippets',
+                nonce: nonceField.val()
+            },
+            success: function(response) {
+                if (response.success) {
+                    statusContainer.css('border-left-color', '#46b450').html('<strong>Success!</strong><br>' + response.data.message);
+                } else {
+                    statusContainer.css('border-left-color', '#dc3232').html('<strong>Error:</strong><br>' + response.data.message);
+                }
+            },
+            error: function(xhr) {
+                const errorMsg = xhr.responseText ? xhr.responseText : 'An unknown AJAX error occurred.';
+                statusContainer.css('border-left-color', '#dc3232').html('<strong>Critical Error:</strong><br>Could not complete the request. ' + errorMsg);
+            },
+            complete: function() {
+                // Re-enable the button once the process is finished
+                regenButton.prop('disabled', false);
+            }
+        });
+    });
 });

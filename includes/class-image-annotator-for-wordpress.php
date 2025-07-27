@@ -65,6 +65,9 @@ class Image_Annotator_for_WordPress {
         add_action( 'wp_ajax_arwai_get_annotorious_history', array( $this, 'get_annotorious_history' ) );
         add_action( 'wp_ajax_nopriv_arwai_get_annotorious_history', array( $this, 'get_annotorious_history' ) );
         add_action( 'wp_ajax_arwai_add_taxonomy_term', array( $this, 'arwai_add_taxonomy_term' ) );
+        add_action( 'wp_ajax_arwai_regenerate_snippets', array( $this, 'ajax_regenerate_snippets' ) );
+        add_action( 'wp_ajax_arwai_clean_old_snippets', array( $this, 'ajax_clean_old_snippets' ) );
+
 
     }
 
@@ -215,38 +218,321 @@ class Image_Annotator_for_WordPress {
         );
     }
 
-    public function settings_page_html() {
-        if ( ! current_user_can( 'manage_options' ) ) return;
-        ?>
-        <div class="wrap">
-            <h1><?php echo esc_html( get_admin_page_title() ); ?></h1>
+public function settings_page_html() {
+    if ( ! current_user_can( 'manage_options' ) ) return;
+    ?>
+    <div class="wrap">
+        <h1><?php echo esc_html( get_admin_page_title() ); ?></h1>
 
-            ccc
-            <form action="options.php" method="post">
-                <?php
-                submit_button( 'Save Settings' );
-                settings_fields( 'arwai_image_annotator_options_group' );
-                do_settings_sections( 'arwai-image-annotator-settings' );
-                submit_button( 'Save Settings' );
-                ?>
-            </form>
-            <div class="arwai-shortcode-guide">
-                <h2><?php _e( 'Shortcode Guide', 'arwai-image-annotator' ); ?></h2>
-                <p><?php _e( 'Use the following shortcodes to place viewer components in your post content.', 'arwai-image-annotator' ); ?></p>
+        <form action="options.php" method="post">
+            <?php
+            settings_fields( 'arwai_image_annotator_options_group' );
+            do_settings_sections( 'arwai-image-annotator-settings' );
+            submit_button( 'Save Settings' );
+            ?>
+        </form>
 
-                <div class="arwai-shortcode-entry">
-                    <h4><?php _e( 'All Image Tags List', 'arwai-image-annotator' ); ?></h4>
-                    <p><code>[arwai_all_tags_list]</code></p>
-                    <p class="description">
-                        <?php _e( 'Displays a list of all unique tags found across all annotations in the current post\'s image collection. If you have linked a taxonomy in the settings above, these tags will link to their respective archive pages.', 'arwai-image-annotator' ); ?>
-                    </p>
-                </div>
+        <hr> <div class="arwai-admin-section">
+            <h2><?php _e( 'Batch Processing', 'arwai-image-annotator' ); ?></h2>
+            <p class="description"><?php _e( 'Use these tools to perform actions on existing annotations.', 'arwai-image-annotator' ); ?></p>
+            
+            <div id="arwai-snippet-regeneration-wrapper" style="padding:15px; background-color:#fff; border:1px solid #ccd0d4; margin-top:15px;">
+                <h4><?php _e( 'Regenerate Annotation Snippets', 'arwai-image-annotator' ); ?></h4>
+                <p>
+                    <?php _e( 'This will attempt to recreate the image snippet for every annotation based on the current full-size images. This is useful if you have updated or compressed your source images, or if the snippet generation logic has changed.', 'arwai-image-annotator' ); ?>
+                </p>
+                <p>
+                    <strong><?php _e( 'Warning:', 'arwai-image-annotator' ); ?></strong>
+                    <?php _e( 'This can be a slow, resource-intensive process. Please back up your database before running.', 'arwai-image-annotator' ); ?>
+                </p>
+
+                <button id="arwai-regenerate-snippets-btn" class="button button-secondary">
+                    <?php _e( 'Regenerate All Snippets', 'arwai-image-annotator' ); ?>
+                </button>
+                
+                <?php wp_nonce_field('arwai_regenerate_snippets_nonce', 'arwai_regenerate_snippets_nonce_field'); ?>
+
+                <div id="arwai-regeneration-status" style="display:none; margin-top: 10px; padding: 10px; border-left: 4px solid #0073aa;"></div>
+            </div>
+            
+
+
+            <div id="arwai-snippet-cleanup-wrapper" style="padding:15px; background-color:#fff; border:1px solid #ccd0d4; margin-top:20px;">
+            <h4><?php _e( 'Clean Snippets from Annotation Data', 'arwai-image-annotator' ); ?></h4>
+            <p>
+                <?php _e( 'This tool will remove the old dataURL snippets that were previously stored inside the main `annotation_data` column. Run this <strong>after</strong> you have successfully run the "Regenerate All Snippets" tool to move the data to the new column.', 'arwai-image-annotator' ); ?>
+            </p>
+            <p>
+                <strong style="color: #dc3232;"><?php _e( 'Warning:', 'arwai-image-annotator' ); ?></strong>
+                <?php _e( 'This is a destructive action and cannot be undone. Please ensure you have a complete database backup before proceeding.', 'arwai-image-annotator' ); ?>
+            </p>
+
+            <button id="arwai-clean-snippets-btn" class="button button-danger">
+                <?php _e( 'Clean All Snippets from Data Column', 'arwai-image-annotator' ); ?>
+            </button>
+            
+            <?php wp_nonce_field('arwai_clean_snippets_nonce', 'arwai_clean_snippets_nonce_field'); ?>
+
+            <div id="arwai-cleanup-status" style="display:none; margin-top: 10px; padding: 10px; border-left: 4px solid #0073aa;"></div>
             </div>
 
+
         </div>
-        <?php
+        <div class="arwai-shortcode-guide">
+            <?php // The rest of your existing shortcode guide HTML... ?>
+        </div>
+
+    </div>
+    <?php
+}
+
+
+/**
+ * AJAX handler to permanently remove the 'arwai-snippet' body
+ * from the `annotation_data` JSON column for all annotations.
+ */
+public function ajax_clean_old_snippets() {
+    // Security checks
+    check_ajax_referer('arwai_clean_snippets_nonce', 'nonce');
+    if (!current_user_can('manage_options')) {
+        wp_send_json_error(['message' => 'Permission denied.']);
     }
 
+    global $wpdb;
+    $table = $this->table_name;
+    $results = $wpdb->get_results("SELECT id, annotation_data FROM {$table}");
+
+    if (empty($results)) {
+        wp_send_json_success(['message' => 'No annotations found to process.']);
+    }
+
+    $updated_count = 0;
+    $unchanged_count = 0;
+
+    foreach ($results as $row) {
+        $annotation = json_decode($row->annotation_data, true);
+        $was_changed = false;
+
+        // Check if data is valid and if 'body' exists
+        if (json_last_error() === JSON_ERROR_NONE && !empty($annotation['body']) && is_array($annotation['body'])) {
+            
+            // Re-index the body array to avoid issues with array_filter
+            $original_body = $annotation['body'];
+            
+            // Filter out any body item with the purpose 'arwai-snippet'
+            $cleaned_body = array_values(array_filter($original_body, function($body_item) {
+                return !isset($body_item['purpose']) || $body_item['purpose'] !== 'arwai-snippet';
+            }));
+
+            // Check if the body was actually modified
+            if (count($cleaned_body) < count($original_body)) {
+                $annotation['body'] = $cleaned_body;
+                $was_changed = true;
+            }
+        }
+
+        if ($was_changed) {
+            // If changes were made, update the database row
+            $wpdb->update(
+                $table,
+                ['annotation_data' => json_encode($annotation)],
+                ['id' => $row->id],
+                ['%s'],
+                ['%d']
+            );
+            $updated_count++;
+        } else {
+            $unchanged_count++;
+        }
+    }
+
+    wp_send_json_success([
+        'message' => sprintf(
+            'Cleanup complete. Records updated: %d. Records that did not require cleaning: %d.',
+            $updated_count,
+            $unchanged_count
+        )
+    ]);
+}
+
+/**
+ * AJAX handler to regenerate all annotation snippets.
+ * This version is more robust and handles potential server limitations.
+ */
+public function ajax_regenerate_snippets() {
+    // Security checks
+    check_ajax_referer('arwai_regenerate_snippets_nonce', 'nonce');
+    if (!current_user_can('manage_options')) {
+        wp_send_json_error(['message' => 'Permission denied.']);
+    }
+
+    // --- NEW: Increase server resources for this specific task ---
+    // Try to increase memory and execution time. The '@' suppresses errors if it's not allowed.
+    @ini_set('memory_limit', '512M');
+    @set_time_limit(300); // 5 minutes
+
+    // --- NEW: Check for GD library before starting ---
+    if (!extension_loaded('gd') || !function_exists('imagecreatefromjpeg')) {
+        wp_send_json_error(['message' => 'Server requirement missing: The GD image processing library is not enabled on your server. Please contact your web host to enable it.']);
+        return;
+    }
+
+    global $wpdb;
+    $results = $wpdb->get_results("SELECT id, annotation_data FROM {$this->table_name}");
+
+    if (empty($results)) {
+        wp_send_json_success(['message' => 'No annotations found to process.']);
+    }
+
+
+    $success_count = 0;
+    $failure_count = 0;
+    $error_messages = [];
+
+    foreach ($results as $row) {
+        $update_result = $this->_create_snippet_from_annotation_data($row->annotation_data);
+
+        if (is_wp_error($update_result)) {
+            $failure_count++;
+            $error_messages[] = "Annotation ID {$row->id}: " . $update_result->get_error_message();
+        } else {
+            // --- START: MODIFIED LOGIC ---
+            // The helper now returns an array with both parts
+            $wpdb->update(
+                $this->table_name,
+                [
+                    'annotation_data' => $update_result['json_data'],
+                    'annotation_snippet_data_url' => $update_result['snippet_url']
+                ],
+                ['id' => $row->id], // where
+                ['%s', '%s'], // format of data
+                ['%d'] // format of where
+            );
+            $success_count++;
+            // --- END: MODIFIED LOGIC ---
+        }
+    }
+
+    $final_message = sprintf(
+        'Processing complete. Successfully updated: %d. Failed: %d.',
+        $success_count,
+        $failure_count
+    );
+
+    // If there were errors, include them in the response
+    if (!empty($error_messages)) {
+        $final_message .= "\n\nFailed Items:\n" . implode("\n", array_slice($error_messages, 0, 10)); // Show up to 10 errors
+    }
+
+    wp_send_json_success(['message' => $final_message]);
+}
+
+
+/**
+ * Creates a dataURL snippet from annotation JSON using the GD library.
+ * This version returns a WP_Error object on failure for better debugging.
+ *
+ * @param string $annotation_json The full annotation data as a JSON string.
+ * @return string|WP_Error The updated annotation JSON string or a WP_Error on failure.
+ */
+private function _create_snippet_from_annotation_data($annotation_json) {
+    $annotation = json_decode($annotation_json, true);
+
+    if (json_last_error() !== JSON_ERROR_NONE) {
+        return new WP_Error('invalid_json', 'Could not decode annotation JSON.');
+    }
+
+    $selector_str = $annotation['target']['selector']['value'] ?? null;
+    $image_url = $annotation['target']['source'] ?? null;
+
+    if (!$selector_str || strpos($selector_str, 'xywh=percent:') !== 0) {
+        return new WP_Error('invalid_selector', 'Selector is missing or not a percentage-based rectangle.');
+    }
+
+    if (!$image_url) {
+        return new WP_Error('missing_source', 'Image source URL is missing.');
+    }
+
+    $attachment_id = attachment_url_to_postid($image_url);
+    if (!$attachment_id) {
+        return new WP_Error('attachment_not_found', 'Could not find image in media library.');
+    }
+
+    $image_path = get_attached_file($attachment_id);
+    if (!$image_path || !file_exists($image_path)) {
+        return new WP_Error('file_not_found', 'Image file does not exist on the server.');
+    }
+
+    list($img_w, $img_h, $image_type) = getimagesize($image_path);
+    if (!$img_w || !$img_h) {
+        return new WP_Error('getimagesize_failed', 'Could not get image dimensions.');
+    }
+
+    $coords = explode(',', str_replace('xywh=percent:', '', $selector_str));
+    if (count($coords) !== 4) return new WP_Error('invalid_coords', 'Selector coordinates are invalid.');
+
+    // --- MODIFIED --- Explicitly round the float values to the nearest integer.
+    $sx = round((floatval($coords[0]) / 100) * $img_w);
+    $sy = round((floatval($coords[1]) / 100) * $img_h);
+    $sWidth = round((floatval($coords[2]) / 100) * $img_w);
+    $sHeight = round((floatval($coords[3]) / 100) * $img_h);
+
+    // --- MODIFIED --- Ensure width and height are at least 1px to prevent errors.
+    if ($sWidth < 1 || $sHeight < 1) {
+        return new WP_Error('invalid_dimensions', 'Calculated snippet dimensions are zero or negative.');
+    }
+
+    $source_image = null;
+    switch ($image_type) {
+        case IMAGETYPE_JPEG:
+            $source_image = @imagecreatefromjpeg($image_path);
+            break;
+        case IMAGETYPE_PNG:
+            $source_image = @imagecreatefrompng($image_path);
+            break;
+        case IMAGETYPE_GIF:
+            $source_image = @imagecreatefromgif($image_path);
+            break;
+        default:
+            return new WP_Error('unsupported_image_type', 'The image format is not supported (only JPEG, PNG, GIF).');
+    }
+
+    if (!$source_image) {
+        return new WP_Error('imagecreate_failed', 'Failed to create image resource. The file may be corrupt or memory limit was exceeded.');
+    }
+
+    // Now, all parameters are guaranteed to be integers.
+    $snippet = imagecreatetruecolor($sWidth, $sHeight);
+    imagecopyresampled($snippet, $source_image, 0, 0, $sx, $sy, $sWidth, $sHeight, $sWidth, $sHeight);
+
+    ob_start();
+    imagepng($snippet);
+    $image_data = ob_get_clean();
+
+    imagedestroy($source_image);
+    imagedestroy($snippet);
+
+    $data_url = 'data:image/png;base64,' . base64_encode($image_data);
+
+    $snippet_body = ['type' => 'TextualBody', 'purpose' => 'arwai-snippet', 'value' => $data_url];
+    $snippet_index = -1;
+    foreach ($annotation['body'] as $index => $body_item) {
+        if (isset($body_item['purpose']) && $body_item['purpose'] === 'arwai-snippet') {
+            $snippet_index = $index;
+            break;
+        }
+    }
+
+    if ($snippet_index > -1) {
+        $annotation['body'][$snippet_index] = $snippet_body;
+    } else {
+        $annotation['body'][] = $snippet_body;
+    }
+
+    return [
+        'json_data' => json_encode($annotation),
+        'snippet_url' => $data_url
+    ];}
 
 /**
  * load_public_scripts
@@ -778,6 +1064,8 @@ public function load_public_scripts() {
         }
     }
 
+
+    
     /**
      * Syncs tags from an annotation to the image attachment post.
      * This allows the image to appear on WordPress tag/category archive pages.
@@ -855,13 +1143,29 @@ public function load_public_scripts() {
         global $wpdb;
         $attachment_id = isset($_GET['attachment_id']) ? intval($_GET['attachment_id']) : 0;
         if (empty($attachment_id)) { wp_send_json_error('Missing attachment_id.'); }
+        
         header('Content-Type: application/json');
         $all_annotations = [];
-        $results = $wpdb->get_results( $wpdb->prepare( "SELECT annotation_data FROM {$this->table_name} WHERE attachment_id = %d", $attachment_id ), ARRAY_A );
+
+        // --- MODIFIED: Select the new snippet column as well ---
+        $results = $wpdb->get_results( $wpdb->prepare( "SELECT annotation_data, annotation_snippet_data_url FROM {$this->table_name} WHERE attachment_id = %d", $attachment_id ), ARRAY_A );
+        
         if ( ! empty( $results ) ) {
             foreach ( $results as $row ) {
                 $decoded_annotation = json_decode( $row['annotation_data'], true );
+                
                 if ( json_last_error() === JSON_ERROR_NONE ) {
+                    // --- MODIFIED: Add the snippet back into the body for the frontend ---
+                    if (!empty($row['annotation_snippet_data_url'])) {
+                        if (!isset($decoded_annotation['body'])) {
+                            $decoded_annotation['body'] = [];
+                        }
+                        $decoded_annotation['body'][] = [
+                            'type' => 'TextualBody',
+                            'purpose' => 'arwai-snippet',
+                            'value' => $row['annotation_snippet_data_url']
+                        ];
+                    }
                     $all_annotations[] = $decoded_annotation;
                 }
             }
@@ -871,87 +1175,112 @@ public function load_public_scripts() {
     }
 
 
-    function anno_add() {
-        if ( ! is_user_logged_in() ) {
-            wp_send_json_error( 'You must be logged in to create annotations.' );
-        }
+// In class Image_Annotator_for_WordPress...
 
-        global $wpdb;
-        $annotation_json = isset($_POST['annotation']) ? wp_unslash($_POST['annotation']) : '';
-        if (empty($annotation_json)) { wp_send_json_error('Annotation data missing.'); }
-
-        $annotation = json_decode($annotation_json, true);
-        if (json_last_error() !== JSON_ERROR_NONE) { wp_send_json_error('Invalid JSON data.'); }
-
-        $image_url = $annotation['target']['source'] ?? '';
-        if (empty($image_url)) { wp_send_json_error('Annotation target source URL missing.'); }
-
-        $attachment_id = attachment_url_to_postid($image_url);
-        if (empty($attachment_id)) { wp_send_json_error('Could not find attachment ID for source URL.'); }
-
-        $this->_sync_annotation_tags_to_attachment($attachment_id, $annotation['body']);
-
-        $annotation_id_from_annotorious = $annotation['id'] ?? '';
-        if (empty($annotation_id_from_annotorious)) { wp_send_json_error('Annotorious ID missing.'); }
-
-        // Sanitize comment body if it exists
-        if (isset($annotation['body']) && is_array($annotation['body'])) {
-            foreach ($annotation['body'] as $key => $body_item) {
-                if (isset($body_item['purpose']) && $body_item['purpose'] === 'commenting' && isset($body_item['value'])) {
-                    $annotation['body'][$key]['value'] = wp_kses_post($body_item['value']);
-                }
-            }
-        }
-
-        $inserted = $wpdb->insert(
-            $this->table_name,
-            array(
-                'annotation_id_from_annotorious' => $annotation_id_from_annotorious,
-                'attachment_id' => $attachment_id,
-                'annotation_data' => wp_json_encode($annotation)
-            ),
-            array('%s', '%d', '%s')
-        );
-
-        if ($inserted) {
-            $new_db_id = $wpdb->insert_id;
-
-            $arwai_id_body = [
-                'type'    => 'TextualBody',
-                'purpose' => 'arwai-AnnotationID',
-                'value'   => (string) $new_db_id,
-            ];
-
-            if (!isset($annotation['body']) || !is_array($annotation['body'])) {
-                $annotation['body'] = [];
-            }
-            $annotation['body'][] = $arwai_id_body;
-
-            $wpdb->update(
-                $this->table_name,
-                ['annotation_data' => wp_json_encode($annotation)],
-                ['id' => $new_db_id],
-                ['%s'],
-                ['%d']
-            );
-
-            $wpdb->insert( $this->history_table_name, array(
-                'annotation_id_from_annotorious' => $annotation_id_from_annotorious,
-                'attachment_id' => $attachment_id,
-                'action_type' => 'created',
-                'annotation_data_snapshot' => wp_json_encode($annotation),
-                'user_id' => get_current_user_id()
-            ), array('%s', '%d', '%s', '%s', '%d') );
-
-            wp_send_json_success(['annotation' => $annotation]);
-
-        } else {
-            wp_send_json_error(['message' => 'Failed to add annotation.']);
-        }
-
-        wp_die();
+function anno_add() {
+    if ( ! is_user_logged_in() ) {
+        wp_send_json_error( 'You must be logged in to create annotations.' );
     }
 
+    global $wpdb;
+    $annotation_json = isset($_POST['annotation']) ? wp_unslash($_POST['annotation']) : '';
+    if (empty($annotation_json)) { wp_send_json_error('Annotation data missing.'); }
+
+    $annotation = json_decode($annotation_json, true);
+    if (json_last_error() !== JSON_ERROR_NONE) { wp_send_json_error('Invalid JSON data.'); }
+
+    $image_url = $annotation['target']['source'] ?? '';
+    if (empty($image_url)) { wp_send_json_error('Annotation target source URL missing.'); }
+
+    $attachment_id = attachment_url_to_postid($image_url);
+    if (empty($attachment_id)) { wp_send_json_error('Could not find attachment ID for source URL.'); }
+
+    $this->_sync_annotation_tags_to_attachment($attachment_id, $annotation['body']);
+
+    // --- START: MODIFIED LOGIC ---
+    $snippet_data_url = null;
+    $snippet_index = -1;
+
+    // Find and extract the snippet from the annotation body
+    if (isset($annotation['body']) && is_array($annotation['body'])) {
+        foreach ($annotation['body'] as $index => $body_item) {
+            if (isset($body_item['purpose']) && $body_item['purpose'] === 'arwai-snippet') {
+                $snippet_data_url = $body_item['value'];
+                $snippet_index = $index;
+                break;
+            }
+        }
+    }
+
+    // If a snippet was found, remove it from the body array before saving the JSON
+    if ($snippet_index > -1) {
+        array_splice($annotation['body'], $snippet_index, 1);
+    }
+    // --- END: MODIFIED LOGIC ---
+
+
+    $annotation_id_from_annotorious = $annotation['id'] ?? '';
+    if (empty($annotation_id_from_annotorious)) { wp_send_json_error('Annotorious ID missing.'); }
+
+    if (isset($annotation['body']) && is_array($annotation['body'])) {
+        foreach ($annotation['body'] as $key => $body_item) {
+            if (isset($body_item['purpose']) && $body_item['purpose'] === 'commenting' && isset($body_item['value'])) {
+                $annotation['body'][$key]['value'] = wp_kses_post($body_item['value']);
+            }
+        }
+    }
+
+    // --- MODIFIED: Added the new column to the insert data array ---
+    $insert_data = array(
+        'annotation_id_from_annotorious' => $annotation_id_from_annotorious,
+        'attachment_id' => $attachment_id,
+        'annotation_data' => wp_json_encode($annotation),
+        'annotation_snippet_data_url' => $snippet_data_url // Save snippet here
+    );
+    
+    $insert_formats = array('%s', '%d', '%s', '%s');
+
+    $inserted = $wpdb->insert($this->table_name, $insert_data, $insert_formats);
+
+    if ($inserted) {
+        $new_db_id = $wpdb->insert_id;
+
+        $arwai_id_body = [
+            'type'    => 'TextualBody',
+            'purpose' => 'arwai-AnnotationID',
+            'value'   => (string) $new_db_id,
+        ];
+
+        $annotation['body'][] = $arwai_id_body;
+
+        $wpdb->update(
+            $this->table_name,
+            ['annotation_data' => wp_json_encode($annotation)],
+            ['id' => $new_db_id],
+            ['%s'],
+            ['%d']
+        );
+
+        $wpdb->insert( $this->history_table_name, array(
+            'annotation_id_from_annotorious' => $annotation_id_from_annotorious,
+            'attachment_id' => $attachment_id,
+            'action_type' => 'created',
+            'annotation_data_snapshot' => wp_json_encode($annotation),
+            'user_id' => get_current_user_id()
+        ), array('%s', '%d', '%s', '%s', '%d') );
+
+        // Add the snippet back for the frontend response so it renders immediately
+        if ($snippet_data_url) {
+             $annotation['body'][] = ['type' => 'TextualBody', 'purpose' => 'arwai-snippet', 'value' => $snippet_data_url];
+        }
+
+        wp_send_json_success(['annotation' => $annotation]);
+    } else {
+        wp_send_json_error(['message' => 'Failed to add annotation.']);
+    }
+
+    wp_die();
+}
 
     function anno_delete() {
         if ( ! is_user_logged_in() ) {
@@ -979,35 +1308,65 @@ public function load_public_scripts() {
         wp_die();
     }
 
-    function anno_update() {
-        if ( ! is_user_logged_in() ) {
-            wp_send_json_error( 'You must be logged in to update annotations.' );
-        }
-
-        global $wpdb;
-        $annoid = isset($_POST['annotationid']) ? sanitize_text_field($_POST['annotationid']) : '';
-        $annotation_json = isset($_POST['annotation']) ? wp_unslash($_POST['annotation']) : '';
-        if (empty($annoid) || empty($annotation_json)) { wp_send_json_error('Missing data.'); }
-        $annotation = json_decode($annotation_json, true);
-        if (json_last_error() !== JSON_ERROR_NONE) { wp_send_json_error('Invalid JSON.'); }
-        $image_url = $annotation['target']['source'] ?? '';
-        $attachment_id = attachment_url_to_postid($image_url);
-        if (empty($attachment_id)) { wp_send_json_error('Could not find attachment ID.'); }
-
-        $this->_sync_annotation_tags_to_attachment($attachment_id, $annotation['body']);
-
-        if (isset($annotation['body'][0]['value'])) { $annotation['body'][0]['value'] = wp_kses_post($annotation['body'][0]['value']); }
-
-        $updated = $wpdb->update( $this->table_name, array('annotation_data' => wp_json_encode($annotation)), array('annotation_id_from_annotorious' => $annoid, 'attachment_id' => $attachment_id), array('%s'), array('%s', '%d') );
-
-        if ($updated) {
-            $wpdb->insert( $this->history_table_name, array('annotation_id_from_annotorious' => $annoid, 'attachment_id' => $attachment_id, 'action_type' => 'updated', 'annotation_data_snapshot' => wp_json_encode($annotation), 'user_id' => get_current_user_id()), array('%s', '%d', '%s', '%s', '%d') );
-            wp_send_json_success();
-        } else {
-            wp_send_json_error();
-        }
-        wp_die();
+function anno_update() {
+    if ( ! is_user_logged_in() ) {
+        wp_send_json_error( 'You must be logged in to update annotations.' );
     }
+
+    global $wpdb;
+    $annoid = isset($_POST['annotationid']) ? sanitize_text_field($_POST['annotationid']) : '';
+    $annotation_json = isset($_POST['annotation']) ? wp_unslash($_POST['annotation']) : '';
+    if (empty($annoid) || empty($annotation_json)) { wp_send_json_error('Missing data.'); }
+    
+    $annotation = json_decode($annotation_json, true);
+    if (json_last_error() !== JSON_ERROR_NONE) { wp_send_json_error('Invalid JSON.'); }
+
+    $image_url = $annotation['target']['source'] ?? '';
+    $attachment_id = attachment_url_to_postid($image_url);
+    if (empty($attachment_id)) { wp_send_json_error('Could not find attachment ID.'); }
+
+    $this->_sync_annotation_tags_to_attachment($attachment_id, $annotation['body']);
+
+    // --- START: MODIFIED LOGIC ---
+    $snippet_data_url = null;
+    $snippet_index = -1;
+
+    if (isset($annotation['body']) && is_array($annotation['body'])) {
+        foreach ($annotation['body'] as $index => $body_item) {
+            if (isset($body_item['purpose']) && $body_item['purpose'] === 'arwai-snippet') {
+                $snippet_data_url = $body_item['value'];
+                $snippet_index = $index;
+                break;
+            }
+        }
+    }
+
+    if ($snippet_index > -1) {
+        array_splice($annotation['body'], $snippet_index, 1);
+    }
+    // --- END: MODIFIED LOGIC ---
+
+    if (isset($annotation['body'][0]['value'])) { $annotation['body'][0]['value'] = wp_kses_post($annotation['body'][0]['value']); }
+
+    // --- MODIFIED: Update both columns ---
+    $update_data = [
+        'annotation_data' => wp_json_encode($annotation),
+        'annotation_snippet_data_url' => $snippet_data_url
+    ];
+
+    $update_where = ['annotation_id_from_annotorious' => $annoid, 'attachment_id' => $attachment_id];
+
+    $updated = $wpdb->update($this->table_name, $update_data, $update_where, ['%s', '%s'], ['%s', '%d']);
+
+    if ($updated) {
+        $wpdb->insert( $this->history_table_name, array('annotation_id_from_annotorious' => $annoid, 'attachment_id' => $attachment_id, 'action_type' => 'updated', 'annotation_data_snapshot' => wp_json_encode($annotation), 'user_id' => get_current_user_id()), array('%s', '%d', '%s', '%s', '%d') );
+        wp_send_json_success();
+    } else {
+        // Even if no rows were changed, it's not a true error if the data was the same.
+        wp_send_json_success(['message' => 'No changes detected.']);
+    }
+    wp_die();
+}
 
 
 
@@ -1112,3 +1471,4 @@ function arwai_wrap_attachment_content_in_permalink( $block_content, $block ) {
     return $block_content;
 }
 add_filter( 'render_block', 'arwai_wrap_attachment_content_in_permalink', 10, 2);
+
