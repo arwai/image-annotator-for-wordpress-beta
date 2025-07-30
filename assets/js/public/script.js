@@ -354,68 +354,98 @@ jQuery(document).ready(function($) {
 
 
     function attachEventHandlers(annoInstance) {
-        annoInstance.on('createAnnotation', function(annotation) {
-            // Snippet saving logic is now conditional
-            if (annoInstance === osdAnno) {
-                const imageUrl = images[osdViewer.currentPage()].fullUrl;
-                const imageEl = new Image();
-                imageEl.crossOrigin = "Anonymous";
-                imageEl.onload = function() {
-                    const canvas = createSnippet(annotation, imageEl);
-                    if (canvas) {
-                        annotation.body.push({ type: 'TextualBody', purpose: 'arwai-snippet', value: canvas.toDataURL('image/png') });
-                    }
-                    $.post(ajax_url, { action: 'arwai_anno_add', annotation: JSON.stringify(annotation) }).done(response => {
-                        if (response.success && response.data.annotation) {
-                            annoInstance.removeAnnotation(annotation);
-                            annoInstance.addAnnotation(response.data.annotation);
-                        }
-                    });
-                };
-                imageEl.src = imageUrl;
-            } else {
-                // For simple viewer, just save without snippet
-                $.post(ajax_url, { action: 'arwai_anno_add', annotation: JSON.stringify(annotation) }).done(response => {
+
+
+    // Helper to get the current attachment ID
+    const getCurrentAttachmentId = () => {
+        return (images && images[currentIndex]) ? images[currentIndex].post_id : 0;
+    };
+
+    annoInstance.on('createAnnotation', function(annotation) {
+        // Snippet saving logic is now conditional
+        if (annoInstance === osdAnno) {
+            const imageUrl = images[osdViewer.currentPage()].fullUrl;
+            const imageEl = new Image();
+            imageEl.crossOrigin = "Anonymous";
+            imageEl.onload = function() {
+                const canvas = createSnippet(annotation, imageEl);
+                if (canvas) {
+                    annotation.body.push({ type: 'TextualBody', purpose: 'arwai-snippet', value: canvas.toDataURL('image/png') });
+                }
+                // +++ MODIFICATION START +++
+                $.post(ajax_url, { 
+                    action: 'arwai_anno_add', 
+                    annotation: JSON.stringify(annotation),
+                    attachment_id: getCurrentAttachmentId() // Send the ID
+                }).done(response => {
+                // +++ MODIFICATION END +++
                     if (response.success && response.data.annotation) {
                         annoInstance.removeAnnotation(annotation);
                         annoInstance.addAnnotation(response.data.annotation);
                     }
                 });
-            }
-        });
+            };
+            imageEl.src = imageUrl;
+        } else {
+            // For simple viewer, just save without snippet
+            // +++ MODIFICATION START +++
+            $.post(ajax_url, { 
+                action: 'arwai_anno_add', 
+                annotation: JSON.stringify(annotation),
+                attachment_id: getCurrentAttachmentId() // Send the ID
+            }).done(response => {
+            // +++ MODIFICATION END +++
+                if (response.success && response.data.annotation) {
+                    annoInstance.removeAnnotation(annotation);
+                    annoInstance.addAnnotation(response.data.annotation);
+                }
+            });
+        }
+    });
 
-        annoInstance.on('updateAnnotation', function(annotation) {
-            if (annoInstance === osdAnno) {
-                const imageUrl = images[osdViewer.currentPage()].fullUrl;
-                const imageEl = new Image();
-                imageEl.crossOrigin = "Anonymous";
-                imageEl.onload = function() {
-                    const snippetIndex = annotation.body.findIndex(b => b.purpose === 'arwai-snippet');
-                    if (snippetIndex > -1) annotation.body.splice(snippetIndex, 1);
-                    const canvas = createSnippet(annotation, imageEl);
-                    if (canvas) {
-                        annotation.body.push({ type: 'TextualBody', purpose: 'arwai-snippet', value: canvas.toDataURL('image/png') });
-                    }
-                    $.post(ajax_url, { action: 'arwai_anno_update', annotation: JSON.stringify(annotation), annotationid: annotation.id });
-                };
-                imageEl.src = imageUrl;
-            } else {
-                $.post(ajax_url, { action: 'arwai_anno_update', annotation: JSON.stringify(annotation), annotationid: annotation.id });
-            }
-        });
+    annoInstance.on('updateAnnotation', function(annotation) {
+        if (annoInstance === osdAnno) {
+            const imageUrl = images[osdViewer.currentPage()].fullUrl;
+            const imageEl = new Image();
+            imageEl.crossOrigin = "Anonymous";
+            imageEl.onload = function() {
+                const snippetIndex = annotation.body.findIndex(b => b.purpose === 'arwai-snippet');
+                if (snippetIndex > -1) annotation.body.splice(snippetIndex, 1);
+                const canvas = createSnippet(annotation, imageEl);
+                if (canvas) {
+                    annotation.body.push({ type: 'TextualBody', purpose: 'arwai-snippet', value: canvas.toDataURL('image/png') });
+                }
+                // +++ MODIFICATION START +++
+                $.post(ajax_url, { 
+                    action: 'arwai_anno_update', 
+                    annotation: JSON.stringify(annotation), 
+                    annotationid: annotation.id,
+                    attachment_id: getCurrentAttachmentId() // Send the ID
+                });
+                // +++ MODIFICATION END +++
+            };
+            imageEl.src = imageUrl;
+        } else {
+            // +++ MODIFICATION START +++
+            $.post(ajax_url, { 
+                action: 'arwai_anno_update', 
+                annotation: JSON.stringify(annotation), 
+                annotationid: annotation.id,
+                attachment_id: getCurrentAttachmentId() // Send the ID
+            });
+            // +++ MODIFICATION END +++
+        }
+    });
 
-        annoInstance.on('deleteAnnotation', function(annotation) {
-            $.post(ajax_url, { action: 'arwai_anno_delete', annotation: JSON.stringify(annotation), annotationid: annotation.id });
+    annoInstance.on('deleteAnnotation', function(annotation) {
+        // +++ MODIFICATION START +++
+        $.post(ajax_url, { 
+            action: 'arwai_anno_delete', 
+            annotationid: annotation.id, 
+            attachment_id: getCurrentAttachmentId() // Send the ID
         });
-        
-        annoInstance.on('selectAnnotation', function(annotation, element) {
-            if (highlightedAnnotation) {
-                highlightedAnnotation.classList.remove('is-highlighted');
-            }
-            element.classList.add('is-highlighted');
-            highlightedAnnotation = element;
-            updateSingleAnnotationDisplay(annotation);
-        });
+        // +++ MODIFICATION END +++
+    });
 
 
 
@@ -576,6 +606,8 @@ jQuery(document).ready(function($) {
                 previousButton: 'arwaiPrevious',
                 rotateLeftButton:  'arwaiRotateLeft',
                 rotateRightButton: 'arwaiRotateRight',
+                fullPageButton: 'arwai-launch-osd',
+                
             });
 
             osdViewer.addHandler('open', function() {
@@ -632,15 +664,22 @@ jQuery(document).ready(function($) {
             osdAnno = null;
         }
         osdModal.hide();
-        updateView(currentIndex);
+        updateView(currentIndex); // This is safe, does nothing for single image mode
         setTimeout(() => {
             initSimpleAnnotorious();
+
+            // This block now reliably loads annotations in both single and multi-image modes.
             if (annotationsVisible && simpleAnno) {
-                const currentAttachmentId = slickSlider.find('.slick-current img').data('attachment-id');
+                // Get the attachment ID from the master 'images' array, which always works.
+                const currentAttachmentId = images[currentIndex] ? images[currentIndex].post_id : 0;
                 if (currentAttachmentId) {
                     loadAnnotations(currentAttachmentId, simpleAnno);
                 }
             }
+
+        // Trigger a custom event to notify other plugins that the viewer has been refreshed.
+        $(slickSlider).trigger('arwai:viewerRefreshed');
+
         }, 50);
     }
 
@@ -648,7 +687,12 @@ jQuery(document).ready(function($) {
     function updateView(index) {
         if (singleAnnotationContainer.length) singleAnnotationContainer.hide();
         if (index < 0 || index >= images.length) return;
-        slickSlider.slick('slickGoTo', index); 
+
+        // +++ ADD THIS CHECK +++
+        // Only try to control the slider if it has been initialized.
+        if (slickSlider.hasClass('slick-initialized')) {
+            slickSlider.slick('slickGoTo', index);
+        }
     }
 
     function updateArrowVisibility() {

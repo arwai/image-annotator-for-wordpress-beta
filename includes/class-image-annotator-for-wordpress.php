@@ -1189,11 +1189,19 @@ function anno_add() {
     $annotation = json_decode($annotation_json, true);
     if (json_last_error() !== JSON_ERROR_NONE) { wp_send_json_error('Invalid JSON data.'); }
 
-    $image_url = $annotation['target']['source'] ?? '';
-    if (empty($image_url)) { wp_send_json_error('Annotation target source URL missing.'); }
 
-    $attachment_id = attachment_url_to_postid($image_url);
-    if (empty($attachment_id)) { wp_send_json_error('Could not find attachment ID for source URL.'); }
+
+    // $image_url = $annotation['target']['source'] ?? '';
+    // if (empty($image_url)) { wp_send_json_error('Annotation target source URL missing.'); }
+
+    // $attachment_id = attachment_url_to_postid($image_url);
+    // if (empty($attachment_id)) { wp_send_json_error('Could not find attachment ID for source URL.'); }
+
+    $attachment_id = isset($_POST['attachment_id']) ? intval($_POST['attachment_id']) : 0;
+    if ( empty( $attachment_id ) || get_post_type( $attachment_id ) !== 'attachment' ) {
+        wp_send_json_error(['message' => 'A valid attachment ID is required.']);
+    }
+    ///end
 
     $this->_sync_annotation_tags_to_attachment($attachment_id, $annotation['body']);
 
@@ -1289,13 +1297,26 @@ function anno_add() {
 
         global $wpdb;
         $annoid = isset($_POST['annotationid']) ? sanitize_text_field($_POST['annotationid']) : '';
-        $annotation_json = isset($_POST['annotation']) ? wp_unslash($_POST['annotation']) : '';
-        if (empty($annoid) || empty($annotation_json)) { wp_send_json_error('Missing data.'); }
-        $annotation = json_decode($annotation_json, true);
-        if (json_last_error() !== JSON_ERROR_NONE) { wp_send_json_error('Invalid JSON.'); }
-        $image_url = $annotation['target']['source'] ?? '';
-        $attachment_id = attachment_url_to_postid($image_url);
-        if (empty($attachment_id)) { wp_send_json_error('Could not find attachment ID.'); }
+
+            // The full annotation object may not be present on delete, so we get the ID directly.
+    $attachment_id = isset($_POST['attachment_id']) ? intval($_POST['attachment_id']) : 0;
+
+    if (empty($annoid) || empty($attachment_id)) { 
+        wp_send_json_error('Missing annotation or attachment ID.'); 
+    }
+
+    if ( get_post_type( $attachment_id ) !== 'attachment' ) {
+        wp_send_json_error(['message' => 'A valid attachment ID is required.']);
+    }
+
+
+        // $annotation_json = isset($_POST['annotation']) ? wp_unslash($_POST['annotation']) : '';
+        // if (empty($annoid) || empty($annotation_json)) { wp_send_json_error('Missing data.'); }
+        // $annotation = json_decode($annotation_json, true);
+        // if (json_last_error() !== JSON_ERROR_NONE) { wp_send_json_error('Invalid JSON.'); }
+        // $image_url = $annotation['target']['source'] ?? '';
+        // $attachment_id = attachment_url_to_postid($image_url);
+        // if (empty($attachment_id)) { wp_send_json_error('Could not find attachment ID.'); }
 
         $existing = $wpdb->get_row( $wpdb->prepare( "SELECT annotation_data FROM {$this->table_name} WHERE annotation_id_from_annotorious = %s AND attachment_id = %d", $annoid, $attachment_id ), ARRAY_A );
         if ($existing) {
@@ -1321,9 +1342,19 @@ function anno_update() {
     $annotation = json_decode($annotation_json, true);
     if (json_last_error() !== JSON_ERROR_NONE) { wp_send_json_error('Invalid JSON.'); }
 
-    $image_url = $annotation['target']['source'] ?? '';
-    $attachment_id = attachment_url_to_postid($image_url);
-    if (empty($attachment_id)) { wp_send_json_error('Could not find attachment ID.'); }
+
+
+
+    // $image_url = $annotation['target']['source'] ?? '';
+    // $attachment_id = attachment_url_to_postid($image_url);
+    // if (empty($attachment_id)) { wp_send_json_error('Could not find attachment ID.'); }
+
+    $attachment_id = isset($_POST['attachment_id']) ? intval($_POST['attachment_id']) : 0;
+    if ( empty( $attachment_id ) || get_post_type( $attachment_id ) !== 'attachment' ) {
+        wp_send_json_error(['message' => 'A valid attachment ID is required.']);
+    }
+    // +++ ADD END +++
+
 
     $this->_sync_annotation_tags_to_attachment($attachment_id, $annotation['body']);
 
