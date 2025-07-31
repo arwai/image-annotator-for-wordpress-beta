@@ -134,6 +134,10 @@ jQuery(document).ready(function($) {
 
     // --- 1. GLOBAL VARIABLES & SELECTORS ---
     const { containerId, images, ajax_url, anno_options } = Arwai_Annotator_Data;
+    const dialogContainer = $('#arwai-annotation-dialog');
+    const infoButton = $('#arwai-information'); // New selector
+    const infoDialog = $('#arwai-info-dialog'); // New selector
+
     const container = $('#' + containerId);
     if (!container.length || images.length === 0) return;
 
@@ -194,6 +198,33 @@ jQuery(document).ready(function($) {
     // Re-run the function when the window is resized to handle orientation changes or browser resizing.
     $(window).on('resize', handleResponsiveSliderImages);
 
+
+    //  ADD DIALOG INITIALIZATION 
+    dialogContainer.dialog({
+        autoOpen: false,
+        modal: false,
+        width: 500,
+        maxHeight: 600,
+        close: function() {
+            // When dialog closes, deselect the annotation in Annotorious
+            const activeAnno = osdViewer ? osdAnno : simpleAnno;
+            if (activeAnno && typeof activeAnno.cancelSelected === 'function') {
+                activeAnno.cancelSelected();
+            }
+        }
+    });
+
+        //  ADD INITIALIZATION FOR THE INFO DIALOG
+    infoDialog.dialog({
+        autoOpen: false,
+        modal: false,
+        width: 450,
+    });
+
+    infoButton.on('click', function() {
+        infoDialog.dialog('open');
+    });
+
     // Generic function to load annotations from the server into ANY Annotorious instance
     function loadAnnotations(attachmentId, annoInstance) {
         if (!annoInstance || !attachmentId) return;
@@ -250,105 +281,62 @@ jQuery(document).ready(function($) {
     // ### SINGLE ANNOTATION DISPLAY ###
     
     function updateSingleAnnotationDisplay(annotation) {
-        if (!singleAnnotationContainer.length) return;
+        // Clear previous content
+        singleAnnotationList.empty();
 
         if (!annotation) {
-            singleAnnotationContainer.hide();
-            singleAnnotationList.empty();
+            dialogContainer.dialog('close'); // Close if no annotation
             return;
         }
 
         const idBody = annotation.body.find(b => b.purpose === 'arwai-AnnotationID');
         const annotationId = idBody ? idBody.value : 'N/A';
         const tagBodies = annotation.body.filter(b => b.purpose === 'tagging');
-
         const footerStyle = tagBodies.length === 0 ? 'style="display: none;"' : '';
-        
         const tagLinks = anno_options.tagLinks || {};
         const tagsHtml = tagBodies.map(body => {
             const tagName = body.value;
-            return tagLinks[tagName] 
-                ? `<button class="arwai-anno-single-tag arwai-tag"><a href="${tagLinks[tagName]}" class="arwai-anno-single-tag-link">${tagName}</a></button>` 
+            return tagLinks[tagName]
+                ? `<span class="arwai-anno-single-tag arwai-tag"><a href="${tagLinks[tagName]}" class="arwai-anno-single-tag-link">${tagName}</a></span>`
                 : `<span class="arwai-anno-single-tag arwai-tag">${tagName}</span>`;
         }).join(' ');
 
         const commentBodies = annotation.body.filter(b => b.purpose === 'commenting' || b.purpose === 'replying');
-        let commentsHtml = '<p class="arwai-empty-comment"><em>Empty comment</em></p>'; // Default message
+        let commentsHtml = '<p class="arwai-empty-comment"><em>Empty comment</em></p>';
         if (commentBodies.length > 0) {
-            commentsHtml = '<ul class="arwai-anno-single-comments">'; // Add target class
+            commentsHtml = '<ul class="arwai-anno-single-comments">';
             commentBodies.forEach(body => {
                 const creator = body.creator || annotation.creator;
                 const creatorName = creator ? (creator.name || creator.displayName) : 'Unknown';
                 const dateValue = body.created || annotation.created;
-
-              let createdDate = ''; // Default to empty
-
+                let createdDate = '';
                 if (dateValue) {
                     const timeAgoString = formatTimeAgo(dateValue);
                     const isoDate = new Date(dateValue).toISOString();
                     createdDate = `<time class="timeago" datetime="${isoDate}">${timeAgoString}</time>`;
                 }
-
                 const commentText = body.value || '<em>Empty comment</em>';
-                commentsHtml += `
-                <li class="arwai-anno-single-comment-item">
-                    <p>${commentText}</p>
-                    <div class="arwai-anno-single-comment-meta">
-                    ${creatorName}: 
-                    ${createdDate}
-                    </div>
-                </li>`;
+                commentsHtml += `<li class="arwai-anno-single-comment-item"><p>${commentText}</p><div class="arwai-anno-single-comment-meta">${creatorName}: ${createdDate}</div></li>`;
             });
             commentsHtml += '</ul>';
         }
 
+        // Build the new HTML for the list inside the dialog
         const newHtml = `
             <li data-id="${annotationId}">
                 <div class="arwai-anno-single-item">
-                    <div class="arwai-anno-single-header">
-                        <span> ${annotationId}</span>
-                    </div>
                     <div>
                         <div class="arwai-anno-single-body">${commentsHtml}</div>
-                        <div class="arwai-anno-single-footer" ${footerStyle}>
-                            ${tagsHtml}
-                        </div>
+                        <div class="arwai-anno-single-footer" ${footerStyle}>${tagsHtml}</div>
                     </div>
                 </div>
-            </li>
+            </li>`;
 
-                <div>
-                    <button id="arwai-close-single-annotation" class="arwai-btn" title="Close">
-                        <i data-feather="x-circle"></i>    
-                    </button>
-                    
-                </div>  
-        `;
-        
         singleAnnotationList.html(newHtml);
 
-        if (typeof feather !== 'undefined') {
-            feather.replace();
-        }
-
-        const style = arwaiStyleFormatter(annotation);
-        singleAnnotationContainer.removeClass(function(index, className) {
-            return (className.match(/\bis-[^\s]+/g) || []).join(' ');
-        });
-
-        if (style && style.className) {
-            const idBody = annotation.body.find(b => b.purpose === 'arwai-AnnotationID');
-            if (idBody) {
-                // Corrected line:
-                const specificListItem = singleAnnotationList.find(`li[data-id="${idBody.value}"]`);
-                singleAnnotationContainer.addClass('is-' + style.className);
-                if (specificListItem.length) { // Check if the item was found before adding a class
-                    specificListItem.addClass('is-' + style.className);
-                }
-            }
-        }
-        
-        singleAnnotationContainer.show();
+        // Set the dialog title dynamically and open it
+        dialogContainer.dialog('option', 'title', 'Annotation: ' + annotationId);
+        dialogContainer.dialog('open');
     }
 
 
@@ -372,13 +360,11 @@ jQuery(document).ready(function($) {
                 if (canvas) {
                     annotation.body.push({ type: 'TextualBody', purpose: 'arwai-snippet', value: canvas.toDataURL('image/png') });
                 }
-                // +++ MODIFICATION START +++
                 $.post(ajax_url, { 
                     action: 'arwai_anno_add', 
                     annotation: JSON.stringify(annotation),
                     attachment_id: getCurrentAttachmentId() // Send the ID
                 }).done(response => {
-                // +++ MODIFICATION END +++
                     if (response.success && response.data.annotation) {
                         annoInstance.removeAnnotation(annotation);
                         annoInstance.addAnnotation(response.data.annotation);
@@ -388,13 +374,11 @@ jQuery(document).ready(function($) {
             imageEl.src = imageUrl;
         } else {
             // For simple viewer, just save without snippet
-            // +++ MODIFICATION START +++
             $.post(ajax_url, { 
                 action: 'arwai_anno_add', 
                 annotation: JSON.stringify(annotation),
                 attachment_id: getCurrentAttachmentId() // Send the ID
             }).done(response => {
-            // +++ MODIFICATION END +++
                 if (response.success && response.data.annotation) {
                     annoInstance.removeAnnotation(annotation);
                     annoInstance.addAnnotation(response.data.annotation);
@@ -415,36 +399,30 @@ jQuery(document).ready(function($) {
                 if (canvas) {
                     annotation.body.push({ type: 'TextualBody', purpose: 'arwai-snippet', value: canvas.toDataURL('image/png') });
                 }
-                // +++ MODIFICATION START +++
                 $.post(ajax_url, { 
                     action: 'arwai_anno_update', 
                     annotation: JSON.stringify(annotation), 
                     annotationid: annotation.id,
                     attachment_id: getCurrentAttachmentId() // Send the ID
                 });
-                // +++ MODIFICATION END +++
             };
             imageEl.src = imageUrl;
         } else {
-            // +++ MODIFICATION START +++
             $.post(ajax_url, { 
                 action: 'arwai_anno_update', 
                 annotation: JSON.stringify(annotation), 
                 annotationid: annotation.id,
                 attachment_id: getCurrentAttachmentId() // Send the ID
             });
-            // +++ MODIFICATION END +++
         }
     });
 
     annoInstance.on('deleteAnnotation', function(annotation) {
-        // +++ MODIFICATION START +++
         $.post(ajax_url, { 
             action: 'arwai_anno_delete', 
             annotationid: annotation.id, 
             attachment_id: getCurrentAttachmentId() // Send the ID
         });
-        // +++ MODIFICATION END +++
     });
 
 
@@ -459,41 +437,8 @@ jQuery(document).ready(function($) {
         });
     }
 
-    $(document).off('click', '#arwai-close-single-annotation').on('click', '#arwai-close-single-annotation', function() {
-        const activeAnno = osdViewer ? osdAnno : simpleAnno;
 
-        if (activeAnno?.cancelSelected) {
-            activeAnno.cancelSelected();
-        }
-        // Optional: hide the container manually
-        singleAnnotationContainer.hide();
-        singleAnnotationList.empty();
-    });
 
-        // ---  Nav button Popup LOGIC ---
-
-        // Select the elements using jQuery selectors
-    const infoButton = $('#arwai-information');
-    const infoPopup = $('#info-popup');
-    const closeButton = $('#close-info-popup');
-
-    // Show the popup when the info button is clicked
-    infoButton.on('click', function() {
-        infoPopup.css('display', 'flex'); // Use .css() to set display to flex
-    });
-
-    // Hide the popup when the close button is clicked
-    closeButton.on('click', function() {
-        infoPopup.hide();
-    });
-
-    // Optional: Hide the popup when clicking on the background
-    infoPopup.on('click', function(event) {
-        // If the click target is the popup container itself (the background)
-        if (event.target === this) {
-            $(this).hide();
-        }
-    });
 
     //popup 2
            // Select the elements using jQuery selectors
@@ -552,6 +497,43 @@ jQuery(document).ready(function($) {
 
             simpleAnno = Annotorious.init(annoConfig);
 
+// This function runs whenever a DOM change is detected
+const handleMutation = (mutationsList) => {
+    for (const mutation of mutationsList) {
+        // We only care about changes to the 'class' attribute
+        if (mutation.type === 'attributes' && mutation.attributeName === 'class') {
+            const targetElement = $(mutation.target);
+
+            // Check if the element IS an annotation shape and NOW has the 'selected' class
+            if (targetElement.hasClass('a9s-annotation') && targetElement.hasClass('selected')) {
+                const annotationId = targetElement.data('id');
+                if (annotationId) {
+                    const annotation = simpleAnno.getAnnotationById(annotationId);
+                    if (annotation) {
+                        // Open your dialog with the correct data
+                        updateSingleAnnotationDisplay(annotation);
+                    }
+                }
+                return; // Exit after handling the selection
+            }
+        }
+    }
+};
+
+// Create an observer instance linked to the callback function
+const observer = new MutationObserver(handleMutation);
+
+// Start observing the viewer container for attribute changes in its descendants
+observer.observe(container[0], {
+    attributes: true,
+    subtree: true,
+    attributeFilter: ['class']
+});
+
+
+
+
+
             if (anno_options.currentUser) {
                 simpleAnno.setAuthInfo({ id: anno_options.currentUser.id, displayName: anno_options.currentUser.displayName });
             }
@@ -575,6 +557,9 @@ jQuery(document).ready(function($) {
 
     // --- 5. OPENSEADRAGON (DEEP ZOOM) LOGIC ---
     function launchOsdViewer() {
+        dialogContainer.dialog('close'); // Close the details dialog first
+        infoDialog.dialog('close'); // Close the info dialog if it's open
+
         annotationsVisible = true;
         osdModal.show();
         if (simpleAnno) {
@@ -688,7 +673,6 @@ jQuery(document).ready(function($) {
         if (singleAnnotationContainer.length) singleAnnotationContainer.hide();
         if (index < 0 || index >= images.length) return;
 
-        // +++ ADD THIS CHECK +++
         // Only try to control the slider if it has been initialized.
         if (slickSlider.hasClass('slick-initialized')) {
             slickSlider.slick('slickGoTo', index);

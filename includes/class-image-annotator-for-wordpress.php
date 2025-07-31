@@ -581,10 +581,12 @@ public function load_public_scripts() {
 
                 if (!empty($image_sources)) {
                     // Enqueue viewer styles
+                    wp_enqueue_style( 'wp-jquery-ui-dialog' );
                     wp_enqueue_style( 'arwai-annotorious-css', ARWAI_IMAGE_ANNOTATOR_URL . 'assets/css/annotorious/annotorious.min.css');
                     wp_enqueue_style( 'arwai-slick-css', ARWAI_IMAGE_ANNOTATOR_URL . 'assets/css/slick/slick.css' );
 
                     // Enqueue viewer scripts
+                    wp_enqueue_script( 'jquery-ui-dialog' );
                     wp_enqueue_script( 'arwai-openseadragon-js', ARWAI_IMAGE_ANNOTATOR_URL . 'assets/js/openseadragon/openseadragon.min.js', array('jquery'), null, true );
                     wp_enqueue_script( 'arwai-annotorious-js', ARWAI_IMAGE_ANNOTATOR_URL . 'assets/js/annotorious/annotorious.min.js', array('jquery'), null, true );
                     wp_enqueue_script( 'arwai-annotorious-osd-plugin-js', ARWAI_IMAGE_ANNOTATOR_URL . 'assets/js/annotorious/openseadragon-annotorious.min.js', array( 'arwai-openseadragon-js', 'arwai-annotorious-js' ), null, true );
@@ -715,9 +717,7 @@ public function load_public_scripts() {
 
                                 <div id='arwai-simple-viewer-main'>
 
-                                <div id='arwai-single-annotation-container'>
-                                    <ul id='arwai-single-annotation'></ul>
-                                </div>
+
                                                                 
                                     <div class='arwai-slick-slider'>
                                         " . $slides_html . "
@@ -740,7 +740,9 @@ public function load_public_scripts() {
                                 </div>
 
                             </div>
-
+                                    <div id='arwai-annotation-dialog' title='Annotation Details' style='display:none;'>
+                                        <ul id='arwai-single-annotation'></ul>
+                                    </div>
                             <div id='arwai-simple-viewer-sidebar'>
 
                                 <div class='arwai-simple-viewer-buttons'>
@@ -761,22 +763,19 @@ public function load_public_scripts() {
                                         <span>Enlarge</span>
                                     </div>
                                     
-                            <div class='arwai-simple-viewer-button-wrapper'>
-                                <button id='arwai-information' class='arwai-simple-toggle' title='information'>
-                                    <span data-feather='info'></span>
-                                </button>
-                                <span>Info</span>
 
-                                <div id='info-popup' class='popup-container' style='display: none;'>
-                                    <div class='popup-content'>
-                                        <div>To add, edit or delete annotations, click on enlarge <span data-feather='maximize-2'></span> to open the Openseadragon viewer. <em>Click</em> or <em>tap</em> the annotation to edit. Hold the SHIFT key while clicking and dragging the mouse to create a new annotation.</div>
-                                        <div class='button-wrapper'>
-                                            <button id='close-info-popup' title='Close info Popup'> <span data-feather='x-circle'></span></button>
-                                        </div>       
+                                    <div class='arwai-simple-viewer-button-wrapper'>
+                                        <button id='arwai-information' class='arwai-simple-toggle' title='information'>
+                                            <span data-feather='info'></span>
+                                        </button>
+                                        <span>Info</span>
                                     </div>
-                                </div>
 
-                            </div>
+                                    <div id='arwai-info-dialog' title='How to Use' style='display:none;'>
+                                        <p>To add, edit or delete annotations, click on enlarge <span data-feather='maximize-2'></span> to open the Openseadragon viewer. <em>Click</em> or <em>tap</em> the annotation to edit. To make a new annotation, hold the SHIFT key while clicking and dragging the mouse to create a new selection.</p>
+                                    </div>
+
+
                                     
 <div class='arwai-simple-viewer-button-wrapper' style='display:none'>
     <button id='arwai-history' class='arwai-simple-toggle' title='history'>
