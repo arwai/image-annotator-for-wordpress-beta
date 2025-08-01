@@ -135,8 +135,8 @@ jQuery(document).ready(function($) {
     // --- 1. GLOBAL VARIABLES & SELECTORS ---
     const { containerId, images, ajax_url, anno_options } = Arwai_Annotator_Data;
     const dialogContainer = $('#arwai-annotation-dialog');
-    const infoButton = $('#arwai-information'); // New selector
-    const infoDialog = $('#arwai-info-dialog'); // New selector
+    const infoButton = $('#arwai-information');
+    const infoDialog = $('#arwai-info-dialog');
 
     const container = $('#' + containerId);
     if (!container.length || images.length === 0) return;
@@ -203,8 +203,19 @@ jQuery(document).ready(function($) {
     dialogContainer.dialog({
         autoOpen: false,
         modal: false,
-        width: 500,
+        width: 'auto',
+        maxWidth: 500, // Set max-width to 500px
         maxHeight: 600,
+        create: function() {
+        // Find the default close button and replace its icon
+            const closeButton = $(this).parent().find('.ui-dialog-titlebar-close');
+            closeButton.html('<span data-feather="x-circle"></span>');
+            
+            // Tell Feather Icons to process the new icon
+            if (typeof feather !== 'undefined') {
+                feather.replace();
+            }
+        },
         close: function() {
             // When dialog closes, deselect the annotation in Annotorious
             const activeAnno = osdViewer ? osdAnno : simpleAnno;
@@ -218,7 +229,19 @@ jQuery(document).ready(function($) {
     infoDialog.dialog({
         autoOpen: false,
         modal: false,
-        width: 450,
+        width: 400,
+        maxWidth: 400, // Set max-width to 400px
+
+        create: function() {
+        // Find the default close button and replace its icon
+            const closeButton = $(this).parent().find('.ui-dialog-titlebar-close');
+            closeButton.html('<span data-feather="x-circle"></span>');
+            
+            // Tell Feather Icons to process the new icon
+            if (typeof feather !== 'undefined') {
+                feather.replace();
+            }
+        },
     });
 
     infoButton.on('click', function() {
@@ -802,7 +825,7 @@ observer.observe(container[0], {
 
 
 
-    // --- NEW: Snippet Regeneration Logic ---
+    // --- Snippet Regeneration Logic ---
     const regenButton = $('#arwai-regenerate-snippets-btn');
     const statusContainer = $('#arwai-regeneration-status');
     const nonceField = $('#arwai_regenerate_snippets_nonce_field');

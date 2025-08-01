@@ -547,8 +547,11 @@ public function load_public_scripts() {
     // --- Global Assets ---
     // Enqueue the main stylesheet unconditionally on these pages because plugin output
     // (like the archive image) might be present.
-    wp_enqueue_style( 'arwai-public-css', ARWAI_IMAGE_ANNOTATOR_URL . 'assets/css/public/public.css');
-
+wp_enqueue_style( 
+    'arwai-public-css', 
+    ARWAI_IMAGE_ANNOTATOR_URL . 'assets/css/public/public.css', 
+    array('wp-jquery-ui-dialog') // Add this dependency array
+);
     // --- Viewer-Specific Assets ---
     // Now, check if we are on a singular page to load the heavy viewer-specific assets.
     // This prevents loading heavy JS libraries on archive pages where they aren't used.

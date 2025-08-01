@@ -27,13 +27,13 @@
 
 
 
-        /* CSS HEX */
-        --black: #000000ff;
-        --aquamarine: #00e0a1ff;
-        --white: #ffffffff;
-        --caribbean-current: #2b645eff;
-        --red-pantone: #e63946ff;
-        --yinmn-blue: #36558fff;
+    /* CSS HEX */
+    --black: #000000ff;
+    --aquamarine: #00e0a1ff;
+    --white: #ffffffff;
+    --caribbean-current: #2b645eff;
+    --red-pantone: #e63946ff;
+    --yinmn-blue: #36558fff;
 
 
     /* ==================================
@@ -118,8 +118,8 @@
     justify-content: center;
     align-items: center;
     flex-wrap: nowrap;
-    max-height: 70vh;
-    min-height: 70vh;
+    max-height: 90vh;
+    min-height: 90vh;
     margin: 0 2rem;        
     flex-direction: column;
     height: auto; /* Let content determine height */
@@ -133,7 +133,7 @@
     flex-direction: column;
     /* padding: 1.5rem; */
     width: 100%;
-    height: 70vh;
+    height: 90vh;
 }
 
 #arwai-simple-viewer-main {
@@ -143,7 +143,7 @@
     align-items: center;
     justify-content: center;
     /* Set a maximum vertical limit for the viewer */
-    max-height: 130vw;
+    max-height: 150vw;
     min-height: 300px; /* Prevents it from getting too small */
     /* padding: 1.5rem; */
     /* border-right: 1px solid  var(--color-border-light); */
@@ -247,9 +247,10 @@
     transition: background-color 0.2s;
 }
 
-.arwai-simple-viewer-nav button:hover {
-    background-color: var(--color-bg-button-secondary-highlight);
-    color: var(--color-bg-button-primary-highlight);
+.arwai-simple-viewer-nav button:hover,
+.ui-button-icon-only:hover {
+    background-color: var(--color-bg-button-secondary-highlight)!important;
+    color: var(--color-bg-button-primary-highlight)!important;
     transform: var(--arwai-tag-transition-child-scale-large);
 }
 
@@ -552,6 +553,7 @@ ul#arwai-single-annotation li div.arwai-anno-single-body ul li p{
 .arwai-anno-single-comment-meta {
     font-size: 0.6rem;
     color: var(--color-text-muted);
+    text-align: center;
 }
 
 .arwai-anno-single-footer {
@@ -675,10 +677,6 @@ ul#arwai-single-annotation li div.arwai-anno-single-body ul li p{
     transform: var(--arwai-tag-transition-child-scale-large);
 }
 
-/* #arwai-openseadragon-toolbar button:hover .arwai-osd-toolbar-button-wrapper,
-#arwai-openseadragon-toolbar-other button:hover .arwai-osd-toolbar-button-wrapper {
-    color: red;
-} */
 
 .arwai-osd-toolbar-button-wrapper {
     text-align: center;
@@ -1020,42 +1018,67 @@ button.arwai-anno-single-tag {
 }
 
 /* ==========================================================================
-   11. Popups
+   11. Dialog Close Button Styles
    ========================================================================== */
+.ui-dialog {
+    border-radius: 4px;
+}
+.ui-dialog-titlebar {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    height: 3rem;
+    min-width: 10rem;
 
-.popup-container {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 400px;
-    height: 100%;
-    background-color: rgba(0, 0, 0, 0.5);
+    font-size: 1rem;
+    /* line-height: 2; */
+    padding: unset;
+    box-sizing: border-box;
+}
+
+.ui-dialog-title{
+    margin: 0 auto 0 auto;
+    padding: 0 0.5rem;
+}
+/* Target the close button in any jQuery UI dialog */
+.ui-dialog .ui-dialog-titlebar-close {
+    /* Remove the default theme's background image */
+    background: none !important;
+
+    /* Reset text hiding and other properties */
+    text-indent: 0;
+    border: none;
+    
+    /* Center the new Feather Icon */
     display: flex;
     justify-content: center;
     align-items: center;
-    z-index: 1000;
-}
-
-.popup-content {
-    background-color: white;
-    /* padding: 2rem; */
-    border: 1px solid var(--color-border-light);
-    border-radius: 5px;
-    box-shadow: var(--wp--preset--shadow--natural);
-    text-align: center;
-    display: flex;
-    flex-direction: column;
-    justify-content: end;
-    font-size: 0.8rem;
-}
-
-.popup-content div{
-    padding: 1rem 1rem 0 1rem;
-}
-.popup-content svg.feather-maximize-2 {
-    height: 0.8rem;
-}
-.popup-content .button-wrapper {
+    margin: 0.333333rem;
+    border-radius: 50%;
+    position: unset;
     align-self: flex-end;
-    padding: 0.5rem;
+}
+
+/* Style the SVG icon itself */
+.ui-dialog .ui-dialog-titlebar-close svg {
+    margin: 0;
+}
+/* Add this new rule to your public.css file */
+.ui-dialog .ui-dialog-titlebar-close::before {
+    display: none !important;
+}
+
+/* Target your dialog content containers */
+#arwai-annotation-dialog, #roa-snippet-dialog {
+    /* Allows long words or URLs to break and wrap to the next line */
+    overflow-wrap: break-word;
+    word-wrap: break-word; /* Fallback for older browsers */
+    
+}
+
+/* Ensure images inside the dialog don't overflow their container */
+#arwai-annotation-dialog img, 
+#roa-snippet-dialog img {
+    max-width: 100%;
+    height: auto; /* Maintain aspect ratio */
 }
