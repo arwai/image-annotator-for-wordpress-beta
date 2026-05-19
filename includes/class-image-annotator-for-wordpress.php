@@ -323,6 +323,7 @@ public function load_public_scripts() {
                         'drawOnSingleClick' => rest_sanitize_boolean(get_option(self::OPTION_ANNO_DRAW_ON_SINGLE_CLICK, false)),
                         'linkTaxonomy' => $linked_taxonomy,
                         'addTermNonce' => wp_create_nonce( 'arwai_add_term_nonce' ),
+                        'annoNonce'    => wp_create_nonce( 'arwai_anno_nonce' ),
                         'tagVocabulary' => [],
                         'currentUser' => $current_user_data,
                         'tagLinks' => [],
@@ -872,6 +873,8 @@ public function load_public_scripts() {
 
 
     function anno_add() {
+        check_ajax_referer( 'arwai_anno_nonce', 'nonce' );
+
         if ( ! is_user_logged_in() ) {
             wp_send_json_error( 'You must be logged in to create annotations.' );
         }
@@ -894,11 +897,20 @@ public function load_public_scripts() {
         $annotation_id_from_annotorious = $annotation['id'] ?? '';
         if (empty($annotation_id_from_annotorious)) { wp_send_json_error('Annotorious ID missing.'); }
 
-        // Sanitize comment body if it exists
+        // Sanitize annotation body
         if (isset($annotation['body']) && is_array($annotation['body'])) {
             foreach ($annotation['body'] as $key => $body_item) {
-                if (isset($body_item['purpose']) && $body_item['purpose'] === 'commenting' && isset($body_item['value'])) {
-                    $annotation['body'][$key]['value'] = wp_kses_post($body_item['value']);
+                if (isset($body_item['value']) && is_string($body_item['value'])) {
+                    // Skip sanitizing snippets as they are base64 data URLs
+                    if (isset($body_item['purpose']) && $body_item['purpose'] === 'arwai-snippet') {
+                        continue;
+                    }
+                    // Use wp_kses_post for comments/replies and sanitize_text_field for others (like tags)
+                    if (isset($body_item['purpose']) && ($body_item['purpose'] === 'commenting' || $body_item['purpose'] === 'replying')) {
+                        $annotation['body'][$key]['value'] = wp_kses_post($body_item['value']);
+                    } else {
+                        $annotation['body'][$key]['value'] = sanitize_text_field($body_item['value']);
+                    }
                 }
             }
         }
@@ -954,6 +966,8 @@ public function load_public_scripts() {
 
 
     function anno_delete() {
+        check_ajax_referer( 'arwai_anno_nonce', 'nonce' );
+
         if ( ! is_user_logged_in() ) {
             wp_send_json_error( 'You must be logged in to delete annotations.' );
         }
@@ -980,6 +994,8 @@ public function load_public_scripts() {
     }
 
     function anno_update() {
+        check_ajax_referer( 'arwai_anno_nonce', 'nonce' );
+
         if ( ! is_user_logged_in() ) {
             wp_send_json_error( 'You must be logged in to update annotations.' );
         }
@@ -996,7 +1012,23 @@ public function load_public_scripts() {
 
         $this->_sync_annotation_tags_to_attachment($attachment_id, $annotation['body']);
 
-        if (isset($annotation['body'][0]['value'])) { $annotation['body'][0]['value'] = wp_kses_post($annotation['body'][0]['value']); }
+        // Sanitize annotation body
+        if (isset($annotation['body']) && is_array($annotation['body'])) {
+            foreach ($annotation['body'] as $key => $body_item) {
+                if (isset($body_item['value']) && is_string($body_item['value'])) {
+                    // Skip sanitizing snippets as they are base64 data URLs
+                    if (isset($body_item['purpose']) && $body_item['purpose'] === 'arwai-snippet') {
+                        continue;
+                    }
+                    // Use wp_kses_post for comments/replies and sanitize_text_field for others (like tags)
+                    if (isset($body_item['purpose']) && ($body_item['purpose'] === 'commenting' || $body_item['purpose'] === 'replying')) {
+                        $annotation['body'][$key]['value'] = wp_kses_post($body_item['value']);
+                    } else {
+                        $annotation['body'][$key]['value'] = sanitize_text_field($body_item['value']);
+                    }
+                }
+            }
+        }
 
         $updated = $wpdb->update( $this->table_name, array('annotation_data' => wp_json_encode($annotation)), array('annotation_id_from_annotorious' => $annoid, 'attachment_id' => $attachment_id), array('%s'), array('%s', '%d') );
 
