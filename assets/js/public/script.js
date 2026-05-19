@@ -577,36 +577,33 @@ jQuery(document).ready(function($) {
                 rotateRightButton: 'arwaiRotateRight',
             });
 
-            osdViewer.addHandler('open', function() {
-                osdAnno = OpenSeadragon.Annotorious(osdViewer, {
-                    adapter: Annotorious.W3CImageAdapter,
-                    fragmentUnit: 'percent',
-                    formatters: [arwaiIdFormatter, arwaiStyleFormatter],
-                    readOnly: anno_options.readOnly || !anno_options.currentUser,
-                    allowEmpty: anno_options.allowEmpty,
-                    widgets: ['COMMENT', { widget: 'TAG', vocabulary: anno_options.tagVocabulary || [] }]
-                });
+            osdAnno = OpenSeadragon.Annotorious(osdViewer, {
+                adapter: Annotorious.W3CImageAdapter,
+                fragmentUnit: 'percent',
+                formatters: [arwaiIdFormatter, arwaiStyleFormatter],
+                readOnly: anno_options.readOnly || !anno_options.currentUser,
+                allowEmpty: anno_options.allowEmpty,
+                widgets: ['COMMENT', { widget: 'TAG', vocabulary: anno_options.tagVocabulary || [] }]
+            });
 
-                if (anno_options.currentUser) {
-                    osdAnno.setAuthInfo({ id: anno_options.currentUser.id, displayName: anno_options.currentUser.displayName });
-                }
-                attachEventHandlers(osdAnno);
-                osdAnno.setVisible(true);
-                updateToggleUI(true);
+            if (anno_options.currentUser) {
+                osdAnno.setAuthInfo({ id: anno_options.currentUser.id, displayName: anno_options.currentUser.displayName });
+            }
+            attachEventHandlers(osdAnno);
+            osdAnno.setVisible(true);
+            updateToggleUI(true);
+
+            osdViewer.addHandler('open', function() {
                 const currentAttachmentId = images[currentIndex].post_id;
-                if (currentAttachmentId) {
+                if (currentAttachmentId && annotationsVisible && osdAnno) {
                     loadAnnotations(currentAttachmentId, osdAnno);
                 }
             });
 
             osdViewer.addHandler('page', function(event) {
                 currentIndex = event.page;
-                const attachmentId = images[currentIndex].post_id;
                 if (osdAnno) {
                     osdAnno.clearAnnotations();
-                }
-                if (annotationsVisible && osdAnno) {
-                    loadAnnotations(attachmentId, osdAnno);
                 }
             });
 
@@ -626,9 +623,14 @@ jQuery(document).ready(function($) {
         if (osdViewer) {
             const lastOsdPage = osdViewer.currentPage();
             currentIndex = lastOsdPage;
+
+            if (osdAnno) {
+                osdAnno.destroy();
+                osdAnno = null;
+            }
+
             osdViewer.destroy();
             osdViewer = null;
-            osdAnno = null;
         }
         osdModal.hide();
         updateView(currentIndex);
