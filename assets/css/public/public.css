@@ -717,6 +717,14 @@ ul#arwai-single-annotation li div.arwai-anno-single-body ul li p{
 
 
 /* Annotorious Overrides */
+.arwai-slick-slider .a9s-annotationlayer {
+    pointer-events: none;
+}
+
+.arwai-slick-slider .a9s-annotation {
+    pointer-events: auto;
+}
+
 .a9s-annotation foreignObject {
     overflow: visible; /* Allows box-shadow to appear */
     pointer-events: none; /* Lets you click "through" the label */
