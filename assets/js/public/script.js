@@ -170,6 +170,7 @@ jQuery(document).ready(function($) {
     let osdAnno = null;    // Annotorious instance for OSD
     let annotationsVisible = false;
     let highlightedAnnotation = null; 
+    let annotationCache = {}; // Frontend cache for annotation data
 
 
     // --- 3. SHARED & HELPER FUNCTIONS ---
@@ -197,6 +198,13 @@ jQuery(document).ready(function($) {
     // Generic function to load annotations from the server into ANY Annotorious instance
     function loadAnnotations(attachmentId, annoInstance) {
         if (!annoInstance || !attachmentId) return;
+
+        // If data is already in cache, use it and skip the AJAX call.
+        if (annotationCache[attachmentId]) {
+            annoInstance.setAnnotations(annotationCache[attachmentId]);
+            return;
+        }
+
         annoInstance.clearAnnotations();
 
         $.ajax({
@@ -205,6 +213,8 @@ jQuery(document).ready(function($) {
             dataType: 'json',
             success: function(annotations) {
                 if (Array.isArray(annotations)) {
+                    // Store in cache for future use
+                    annotationCache[attachmentId] = annotations;
                     annoInstance.setAnnotations(annotations);
                 }
             }
@@ -356,7 +366,9 @@ jQuery(document).ready(function($) {
         annoInstance.on('createAnnotation', function(annotation) {
             // Snippet saving logic is now conditional
             if (annoInstance === osdAnno) {
-                const imageUrl = images[osdViewer.currentPage()].fullUrl;
+                const currentImgData = images[osdViewer.currentPage()];
+                const imageUrl = currentImgData.fullUrl;
+                const attachmentId = currentImgData.post_id;
                 const imageEl = new Image();
                 imageEl.crossOrigin = "Anonymous";
                 imageEl.onload = function() {
@@ -368,16 +380,25 @@ jQuery(document).ready(function($) {
                         if (response.success && response.data.annotation) {
                             annoInstance.removeAnnotation(annotation);
                             annoInstance.addAnnotation(response.data.annotation);
+                            // Sync cache
+                            if (annotationCache[attachmentId]) {
+                                annotationCache[attachmentId].push(response.data.annotation);
+                            }
                         }
                     });
                 };
                 imageEl.src = imageUrl;
             } else {
                 // For simple viewer, just save without snippet
+                const attachmentId = mainImage ? mainImage.data('attachment-id') : null;
                 $.post(ajax_url, { action: 'arwai_anno_add', annotation: JSON.stringify(annotation), nonce: anno_options.annoNonce }).done(response => {
                     if (response.success && response.data.annotation) {
                         annoInstance.removeAnnotation(annotation);
                         annoInstance.addAnnotation(response.data.annotation);
+                        // Sync cache
+                        if (attachmentId && annotationCache[attachmentId]) {
+                            annotationCache[attachmentId].push(response.data.annotation);
+                        }
                     }
                 });
             }
@@ -385,7 +406,9 @@ jQuery(document).ready(function($) {
 
         annoInstance.on('updateAnnotation', function(annotation) {
             if (annoInstance === osdAnno) {
-                const imageUrl = images[osdViewer.currentPage()].fullUrl;
+                const currentImgData = images[osdViewer.currentPage()];
+                const imageUrl = currentImgData.fullUrl;
+                const attachmentId = currentImgData.post_id;
                 const imageEl = new Image();
                 imageEl.crossOrigin = "Anonymous";
                 imageEl.onload = function() {
@@ -395,16 +418,39 @@ jQuery(document).ready(function($) {
                     if (canvas) {
                         annotation.body.push({ type: 'TextualBody', purpose: 'arwai-snippet', value: canvas.toDataURL('image/png') });
                     }
-                    $.post(ajax_url, { action: 'arwai_anno_update', annotation: JSON.stringify(annotation), annotationid: annotation.id, nonce: anno_options.annoNonce });
+                    $.post(ajax_url, { action: 'arwai_anno_update', annotation: JSON.stringify(annotation), annotationid: annotation.id, nonce: anno_options.annoNonce }).done(() => {
+                        // Sync cache
+                        if (annotationCache[attachmentId]) {
+                            const index = annotationCache[attachmentId].findIndex(a => a.id === annotation.id);
+                            if (index > -1) {
+                                annotationCache[attachmentId][index] = annotation;
+                            }
+                        }
+                    });
                 };
                 imageEl.src = imageUrl;
             } else {
-                $.post(ajax_url, { action: 'arwai_anno_update', annotation: JSON.stringify(annotation), annotationid: annotation.id, nonce: anno_options.annoNonce });
+                const attachmentId = mainImage ? mainImage.data('attachment-id') : null;
+                $.post(ajax_url, { action: 'arwai_anno_update', annotation: JSON.stringify(annotation), annotationid: annotation.id, nonce: anno_options.annoNonce }).done(() => {
+                    // Sync cache
+                    if (attachmentId && annotationCache[attachmentId]) {
+                        const index = annotationCache[attachmentId].findIndex(a => a.id === annotation.id);
+                        if (index > -1) {
+                            annotationCache[attachmentId][index] = annotation;
+                        }
+                    }
+                });
             }
         });
 
         annoInstance.on('deleteAnnotation', function(annotation) {
-            $.post(ajax_url, { action: 'arwai_anno_delete', annotation: JSON.stringify(annotation), annotationid: annotation.id, nonce: anno_options.annoNonce });
+            const attachmentId = (annoInstance === osdAnno) ? images[osdViewer.currentPage()].post_id : (mainImage ? mainImage.data('attachment-id') : null);
+            $.post(ajax_url, { action: 'arwai_anno_delete', annotation: JSON.stringify(annotation), annotationid: annotation.id, nonce: anno_options.annoNonce }).done(() => {
+                // Sync cache
+                if (attachmentId && annotationCache[attachmentId]) {
+                    annotationCache[attachmentId] = annotationCache[attachmentId].filter(a => a.id !== annotation.id);
+                }
+            });
         });
         
         annoInstance.on('selectAnnotation', function(annotation, element) {
