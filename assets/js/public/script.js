@@ -577,7 +577,6 @@ jQuery(document).ready(function($) {
                 rotateRightButton: 'arwaiRotateRight',
             });
 
-            // Initialize Annotorious for OSD once
             osdAnno = OpenSeadragon.Annotorious(osdViewer, {
                 adapter: Annotorious.W3CImageAdapter,
                 fragmentUnit: 'percent',
@@ -590,17 +589,13 @@ jQuery(document).ready(function($) {
             if (anno_options.currentUser) {
                 osdAnno.setAuthInfo({ id: anno_options.currentUser.id, displayName: anno_options.currentUser.displayName });
             }
-
             attachEventHandlers(osdAnno);
             osdAnno.setVisible(true);
             updateToggleUI(true);
 
             osdViewer.addHandler('open', function() {
-                if (osdAnno) {
-                    osdAnno.clearAnnotations();
-                }
-                const currentAttachmentId = images[osdViewer.currentPage()].post_id;
-                if (annotationsVisible && osdAnno && currentAttachmentId) {
+                const currentAttachmentId = images[currentIndex].post_id;
+                if (currentAttachmentId && annotationsVisible && osdAnno) {
                     loadAnnotations(currentAttachmentId, osdAnno);
                 }
             });
