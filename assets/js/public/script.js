@@ -364,7 +364,7 @@ jQuery(document).ready(function($) {
                     if (canvas) {
                         annotation.body.push({ type: 'TextualBody', purpose: 'arwai-snippet', value: canvas.toDataURL('image/png') });
                     }
-                    $.post(ajax_url, { action: 'arwai_anno_add', annotation: JSON.stringify(annotation) }).done(response => {
+                    $.post(ajax_url, { action: 'arwai_anno_add', annotation: JSON.stringify(annotation), nonce: anno_options.annoNonce }).done(response => {
                         if (response.success && response.data.annotation) {
                             annoInstance.removeAnnotation(annotation);
                             annoInstance.addAnnotation(response.data.annotation);
@@ -374,7 +374,7 @@ jQuery(document).ready(function($) {
                 imageEl.src = imageUrl;
             } else {
                 // For simple viewer, just save without snippet
-                $.post(ajax_url, { action: 'arwai_anno_add', annotation: JSON.stringify(annotation) }).done(response => {
+                $.post(ajax_url, { action: 'arwai_anno_add', annotation: JSON.stringify(annotation), nonce: anno_options.annoNonce }).done(response => {
                     if (response.success && response.data.annotation) {
                         annoInstance.removeAnnotation(annotation);
                         annoInstance.addAnnotation(response.data.annotation);
@@ -395,16 +395,16 @@ jQuery(document).ready(function($) {
                     if (canvas) {
                         annotation.body.push({ type: 'TextualBody', purpose: 'arwai-snippet', value: canvas.toDataURL('image/png') });
                     }
-                    $.post(ajax_url, { action: 'arwai_anno_update', annotation: JSON.stringify(annotation), annotationid: annotation.id });
+                    $.post(ajax_url, { action: 'arwai_anno_update', annotation: JSON.stringify(annotation), annotationid: annotation.id, nonce: anno_options.annoNonce });
                 };
                 imageEl.src = imageUrl;
             } else {
-                $.post(ajax_url, { action: 'arwai_anno_update', annotation: JSON.stringify(annotation), annotationid: annotation.id });
+                $.post(ajax_url, { action: 'arwai_anno_update', annotation: JSON.stringify(annotation), annotationid: annotation.id, nonce: anno_options.annoNonce });
             }
         });
 
         annoInstance.on('deleteAnnotation', function(annotation) {
-            $.post(ajax_url, { action: 'arwai_anno_delete', annotation: JSON.stringify(annotation), annotationid: annotation.id });
+            $.post(ajax_url, { action: 'arwai_anno_delete', annotation: JSON.stringify(annotation), annotationid: annotation.id, nonce: anno_options.annoNonce });
         });
         
         annoInstance.on('selectAnnotation', function(annotation, element) {
