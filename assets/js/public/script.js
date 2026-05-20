@@ -537,17 +537,34 @@ jQuery(document).ready(function($) {
     
     // --- 4. SIMPLE VIEWER LOGIC ---
     function initSimpleAnnotorious() {
+        // If annotations are hidden, we don't want an instance running in the background.
+        // Destroying the instance also ensures we start fresh next time they are toggled.
+        if (!annotationsVisible) {
+            if (simpleAnno) {
+                simpleAnno.destroy();
+                simpleAnno = null;
+                highlightedAnnotation = null;
+            }
+            return;
+        }
+
+        // If we're already initialized for the current mainImage, don't re-init.
+        // This prevents multiple initializations on the same image.
+        const currentMainImage = slickSlider.hasClass('slick-initialized')
+            ? slickSlider.find('.slick-current img')
+            : slickSlider.find('img').first();
+
+        if (simpleAnno && mainImage && mainImage[0] === currentMainImage[0]) {
+            return;
+        }
+
         if (simpleAnno) {
             simpleAnno.destroy();
             simpleAnno = null;
             highlightedAnnotation = null;
         }
 
-        if (slickSlider.hasClass('slick-initialized')) {
-            mainImage = slickSlider.find('.slick-current img');
-        } else {
-            mainImage = slickSlider.find('img').first();
-        }
+        mainImage = currentMainImage;
         
         if (!mainImage.length) return;
 
@@ -573,13 +590,11 @@ jQuery(document).ready(function($) {
 
              attachEventHandlers(simpleAnno, this);
             
-            if (annotationsVisible) {
-                const currentAttachmentId = $(this).data('attachment-id');
-                if (currentAttachmentId) {
-                    loadAnnotations(currentAttachmentId, simpleAnno);
-                }
+            const currentAttachmentId = $(this).data('attachment-id');
+            if (currentAttachmentId) {
+                loadAnnotations(currentAttachmentId, simpleAnno);
             }
-            simpleAnno.setVisible(annotationsVisible);
+            simpleAnno.setVisible(true);
         }).each(function() {
             if (this.complete) {
                 $(this).trigger('load');
@@ -680,14 +695,9 @@ jQuery(document).ready(function($) {
         }
         osdModal.hide();
         updateView(currentIndex);
+        // Delay initialization to ensure the DOM has settled after closing the modal.
         setTimeout(() => {
             initSimpleAnnotorious();
-            if (annotationsVisible && simpleAnno) {
-                const currentAttachmentId = slickSlider.find('.slick-current img').data('attachment-id');
-                if (currentAttachmentId) {
-                    loadAnnotations(currentAttachmentId, simpleAnno);
-                }
-            }
         }, 50);
     }
 
@@ -776,20 +786,26 @@ jQuery(document).ready(function($) {
 
     function handleAnnotationToggle() {
         annotationsVisible = !annotationsVisible;
-        const activeAnno = osdViewer ? osdAnno : simpleAnno;
-        if (!activeAnno) return;
-        if (annotationsVisible && activeAnno.getAnnotations().length === 0) {
-            let currentAttachmentId;
-            if (osdViewer) {
-                currentAttachmentId = images[currentIndex].post_id;
-            } else if (mainImage && mainImage.length) {
-                currentAttachmentId = mainImage.data('attachment-id');
+
+        if (osdViewer) {
+            if (osdAnno) {
+                osdAnno.setVisible(annotationsVisible);
+                if (annotationsVisible && osdAnno.getAnnotations().length === 0) {
+                    const currentAttachmentId = images[currentIndex].post_id;
+                    if (currentAttachmentId) {
+                        loadAnnotations(currentAttachmentId, osdAnno);
+                    }
+                }
             }
-            if (currentAttachmentId) {
-                loadAnnotations(currentAttachmentId, activeAnno);
+        } else {
+            if (annotationsVisible) {
+                initSimpleAnnotorious();
+            } else if (simpleAnno) {
+                simpleAnno.destroy();
+                simpleAnno = null;
+                highlightedAnnotation = null;
             }
         }
-        activeAnno.setVisible(annotationsVisible);
         updateToggleUI(annotationsVisible);
     }
 
