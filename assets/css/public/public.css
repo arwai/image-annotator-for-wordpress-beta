@@ -966,6 +966,44 @@ button.arwai-anno-single-tag {
     outline: 0 !important;
 }
 
+/**
+ * MOBILE SWIPE FIX
+ * Ensures that the Annotorious SVG overlay does not block swiping in the Slick Slider.
+ * 'pointer-events: none' on the layer allows touches to pass through to the slider.
+ * 'pointer-events: auto' on individual annotations ensures they remain clickable.
+ */
+.arwai-slick-slider .a9s-annotationlayer {
+    pointer-events: none !important;
+    touch-action: auto !important;
+}
+
+/* Ensure shapes and their labels are interactive */
+.arwai-slick-slider .a9s-annotation,
+.arwai-slick-slider .a9s-annotation * {
+    pointer-events: auto !important;
+    touch-action: manipulation !important;
+}
+
+/* Ensure the wrapper div created by Annotorious doesn't block events */
+/* When Annotorious initializes, it wraps the image in a relative DIV. */
+.arwai-slick-slider .arwai-slick-slide-wrapper > div {
+    pointer-events: none !important;
+    touch-action: auto !important;
+}
+
+/* Ensure the image itself and the annotation layer are reachable */
+.arwai-slick-slider .arwai-slick-slide-wrapper > div > img,
+.arwai-slick-slider .arwai-slick-slide-wrapper > div > .a9s-annotationlayer {
+    pointer-events: auto !important;
+}
+
+/* But we still want the layer to be 'none' to let swiping pass to image/slider */
+/* We reset it back to none, override the 'auto' from above */
+.arwai-slick-slider .arwai-slick-slide-wrapper > div > .a9s-annotationlayer {
+    pointer-events: none !important;
+    touch-action: auto !important;
+}
+
 
 @media print {
     #header,
