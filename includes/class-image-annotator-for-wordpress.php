@@ -66,6 +66,7 @@ class Image_Annotator_for_WordPress {
         add_action( 'wp_ajax_arwai_get_annotorious_history', array( $this, 'get_annotorious_history' ) );
         add_action( 'wp_ajax_nopriv_arwai_get_annotorious_history', array( $this, 'get_annotorious_history' ) );
         add_action( 'wp_ajax_arwai_add_taxonomy_term', array( $this, 'arwai_add_taxonomy_term' ) );
+        add_action( 'wp_ajax_arwai_sideload_iiif', array( $this, 'arwai_sideload_iiif' ) );
 
     }
 
@@ -377,6 +378,10 @@ public function load_public_scripts() {
             $screen = get_current_screen();
             if ( $screen && in_array( $screen->post_type, $this->get_active_post_types() ) ) {
                 wp_enqueue_script('arwai-admin-js', ARWAI_IMAGE_ANNOTATOR_URL . 'assets/js/admin/admin.js', array('jquery', 'jquery-ui-sortable'), null, true);
+                wp_localize_script('arwai-admin-js', 'Arwai_Admin_Data', array(
+                    'ajax_url' => admin_url('admin-ajax.php'),
+                    'sideload_nonce' => wp_create_nonce('arwai_sideload_nonce')
+                ));
                 wp_enqueue_media();
             }
         }
@@ -745,8 +750,12 @@ public function load_public_scripts() {
             <hr />
             <p>
                 <label for="iiif_image_url"><strong><?php _e( 'Remote tiny-iiif Endpoint URL', 'arwai-image-annotator' ); ?></strong></label><br />
-                <input type="text" name="iiif_image_url" id="iiif_image_url" value="" class="large-text" placeholder="https://example.com/iiif/image/info.json" />
-                <small class="description"><?php _e( 'Enter a tiny-iiif URL to sideload it into the collection.', 'arwai-image-annotator' ); ?></small>
+                <div style="display: flex; gap: 10px; align-items: center;">
+                    <input type="text" name="iiif_image_url" id="iiif_image_url" value="" class="large-text" placeholder="https://example.com/iiif/image/info.json" />
+                    <button type="button" id="arwai-iiif-upload-button" class="button button-primary"><?php _e( 'Upload', 'arwai-image-annotator' ); ?></button>
+                </div>
+                <small class="description"><?php _e( 'Enter a tiny-iiif Image or Manifest URL to sideload it into the collection.', 'arwai-image-annotator' ); ?></small>
+                <div id="arwai-iiif-status" style="margin-top: 5px; display: none;"></div>
             </p>
             <p><label><input type="checkbox" name="<?php echo esc_attr( self::META_SET_FIRST_AS_FEATURED ); ?>" value="yes" <?php checked( get_post_meta( $post->ID, self::META_SET_FIRST_AS_FEATURED, true ), 'yes' ); ?> /> <?php _e( 'Use the first image in this collection as the post\'s featured image.', 'arwai-image-annotator' ); ?></label></p>
         </div>
@@ -800,25 +809,95 @@ public function load_public_scripts() {
     }
 
     /**
-     * Sideloads an image from a IIIF endpoint and attaches it to the post.
+     * AJAX handler for IIIF sideloading.
+     */
+    public function arwai_sideload_iiif() {
+        check_ajax_referer( 'arwai_sideload_nonce', 'nonce' );
+        if ( ! current_user_can( 'edit_posts' ) ) {
+            wp_send_json_error( 'Permission denied.' );
+        }
+
+        $post_id = isset($_POST['post_id']) ? intval($_POST['post_id']) : 0;
+        $iiif_url = isset($_POST['iiif_url']) ? esc_url_raw($_POST['iiif_url']) : '';
+
+        if ( empty($post_id) || empty($iiif_url) ) {
+            wp_send_json_error( 'Missing parameters.' );
+        }
+
+        $attach_id = $this->sideload_iiif_image( $post_id, $iiif_url );
+
+        if ( $attach_id ) {
+            $thumb_url = wp_get_attachment_image_url( $attach_id, 'thumbnail' );
+            wp_send_json_success( array(
+                'attach_id' => $attach_id,
+                'thumb_url' => $thumb_url
+            ) );
+        } else {
+            wp_send_json_error( 'Failed to sideload image. Please check the URL and try again.' );
+        }
+    }
+
+    /**
+     * Sideloads an image from a IIIF endpoint or Manifest and attaches it to the post.
      *
      * @param int    $post_id  The ID of the post to attach the image to.
-     * @param string $iiif_url The IIIF endpoint URL.
+     * @param string $iiif_url The IIIF endpoint or Manifest URL.
+     * @return int|bool The attachment ID on success, false on failure.
      */
     private function sideload_iiif_image( $post_id, $iiif_url ) {
-        $preview_url = $iiif_url;
+        // Initial fetch to determine if it's a manifest
+        $response = wp_remote_get( $iiif_url, array( 'timeout' => 30 ) );
+        if ( is_wp_error( $response ) || 200 !== wp_remote_retrieve_response_code( $response ) ) {
+            return false;
+        }
+
+        $data = json_decode( wp_remote_retrieve_body( $response ), true );
+        $real_iiif_image_url = $iiif_url;
+
+        // IIIF Manifest Detection & Parsing
+        if ( $data && ( (isset($data['@type']) && $data['@type'] === 'sc:Manifest') || (isset($data['type']) && $data['type'] === 'Manifest') ) ) {
+            // IIIF v2
+            if ( isset($data['sequences'][0]['canvases'][0]['images'][0]['resource']['service']['@id']) ) {
+                $real_iiif_image_url = $data['sequences'][0]['canvases'][0]['images'][0]['resource']['service']['@id'];
+            }
+            // IIIF v3
+            elseif ( isset($data['items'][0]['items'][0]['items'][0]['body']['service'][0]['id']) ) {
+                 $real_iiif_image_url = $data['items'][0]['items'][0]['items'][0]['body']['service'][0]['id'];
+            }
+            // Alternative IIIF v3 structure
+            elseif ( isset($data['items'][0]['items'][0]['items'][0]['body']['id']) && isset($data['items'][0]['items'][0]['items'][0]['body']['type']) && $data['items'][0]['items'][0]['items'][0]['body']['type'] === 'Image' ) {
+                 $real_iiif_image_url = $data['items'][0]['items'][0]['items'][0]['body']['id'];
+            }
+            // Fallback to resource ID if no service (v2)
+            elseif ( isset($data['sequences'][0]['canvases'][0]['images'][0]['resource']['@id']) ) {
+                $real_iiif_image_url = $data['sequences'][0]['canvases'][0]['images'][0]['resource']['@id'];
+            }
+
+            // Ensure we point to info.json if it's a service base URL
+            if ( !preg_match('/\.(jpg|jpeg|png|webp|json)$/i', $real_iiif_image_url) ) {
+                $real_iiif_image_url = rtrim($real_iiif_image_url, '/') . '/info.json';
+            }
+        }
+
+        $preview_url = $real_iiif_image_url;
         if ( strpos( $preview_url, 'info.json' ) !== false ) {
             $preview_url = str_replace( 'info.json', 'full/1200,/0/default.jpg', $preview_url );
+        } elseif ( !preg_match('/\.(jpg|jpeg|png|webp)$/i', $preview_url) ) {
+            $preview_url = rtrim($preview_url, '/') . '/full/1200,/0/default.jpg';
         }
 
-        $response = wp_remote_get( $preview_url, array( 'timeout' => 30 ) );
-        if ( is_wp_error( $response ) || 200 !== wp_remote_retrieve_response_code( $response ) ) {
-            return;
+        $img_response = wp_remote_get( $preview_url, array( 'timeout' => 30 ) );
+        if ( is_wp_error( $img_response ) || 200 !== wp_remote_retrieve_response_code( $img_response ) ) {
+             // Fallback to direct URL if preview fetch fails
+             $img_response = wp_remote_get( $real_iiif_image_url, array( 'timeout' => 30 ) );
+             if ( is_wp_error( $img_response ) || 200 !== wp_remote_retrieve_response_code( $img_response ) ) {
+                 return false;
+             }
         }
 
-        $image_data = wp_remote_retrieve_body( $response );
+        $image_data = wp_remote_retrieve_body( $img_response );
         $filename = basename( parse_url( $iiif_url, PHP_URL_PATH ) );
-        if ( empty( $filename ) || $filename === 'info.json' ) {
+        if ( empty( $filename ) || $filename === 'info.json' || $filename === 'manifest' ) {
             $filename = 'iiif-image-' . time() . '.jpg';
         } else {
              $filename = str_replace('.json', '.jpg', $filename);
@@ -827,7 +906,7 @@ public function load_public_scripts() {
 
         $upload = wp_upload_bits( $filename, null, $image_data );
         if ( $upload['error'] ) {
-            return;
+            return false;
         }
 
         $wp_filetype = wp_check_filetype( $upload['file'], null );
@@ -844,8 +923,8 @@ public function load_public_scripts() {
             $attach_data = wp_generate_attachment_metadata( $attach_id, $upload['file'] );
             wp_update_attachment_metadata( $attach_id, $attach_data );
 
-            // Store original IIIF URL on the attachment
-            update_post_meta( $attach_id, self::ATTACHMENT_META_IIIF_SOURCE, $iiif_url );
+            // Store original IIIF URL (or the extracted image URL) on the attachment
+            update_post_meta( $attach_id, self::ATTACHMENT_META_IIIF_SOURCE, $real_iiif_image_url );
 
             // Add to post collection
             $image_ids_json = get_post_meta( $post_id, self::META_IMAGE_IDS, true );
@@ -858,7 +937,9 @@ public function load_public_scripts() {
             if ( ! has_post_thumbnail( $post_id ) ) {
                 set_post_thumbnail( $post_id, $attach_id );
             }
+            return $attach_id;
         }
+        return false;
     }
 
     /**
