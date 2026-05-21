@@ -18,6 +18,7 @@ class Image_Annotator_for_WordPress {
     const META_SET_FIRST_AS_FEATURED = '_arwai_image_annotator_set_first_as_featured';
     const OPTION_ACTIVE_POST_TYPES = 'arwai_image_annotator_active_post_types';
     const META_IMAGE_IDS = '_arwai_multi_image_ids';
+    const ATTACHMENT_META_IIIF_SOURCE = '_iiif_source_url';
 
     // Annotorious Settings Keys
     const OPTION_ANNO_READ_ONLY = 'arwai_anno_read_only';
@@ -281,13 +282,15 @@ public function load_public_scripts() {
                     $large_src = wp_get_attachment_image_src( $id, 'large' );
                     $full_src = wp_get_attachment_image_src( $id, 'full' );
                     $thumb_src = wp_get_attachment_image_src( $id, 'thumbnail' );
+                    $iiif_source = get_post_meta( $id, self::ATTACHMENT_META_IIIF_SOURCE, true );
 
                     if ($large_src && $full_src) {
                         $carry[] = [
                             'post_id'      => $id,
                             'largeUrl'     => $large_src[0],
                             'fullUrl'      => $full_src[0],
-                            'thumbnailUrl' => $thumb_src ? $thumb_src[0] : ''
+                            'thumbnailUrl' => $thumb_src ? $thumb_src[0] : '',
+                            'iiif_source_url' => !empty($iiif_source) ? $iiif_source : $full_src[0]
                         ];
                     }
                     return $carry;
@@ -347,6 +350,7 @@ public function load_public_scripts() {
                     $viewer_data = [
                         'containerId'   => 'arwai-simple-viewer-container-' . $post_id,
                         'images'        => $image_sources,
+                        'post_id'       => $post_id,
                         'ajax_url'      => admin_url( 'admin-ajax.php' ),
                         'anno_options'  => $anno_options
                     ];
@@ -738,6 +742,12 @@ public function load_public_scripts() {
                 <a href="#" class="button button-secondary arwai-multi-image-add-button"><?php _e( 'Add/Select Images', 'arwai-image-annotator' ); ?></a>
                 <input type="hidden" id="arwai_multi_image_ids_field" name="<?php echo esc_attr(self::META_IMAGE_IDS); ?>" value="<?php echo esc_attr( $image_ids_json ); ?>" />
             </p>
+            <hr />
+            <p>
+                <label for="iiif_image_url"><strong><?php _e( 'Remote tiny-iiif Endpoint URL', 'arwai-image-annotator' ); ?></strong></label><br />
+                <input type="text" name="iiif_image_url" id="iiif_image_url" value="" class="large-text" placeholder="https://example.com/iiif/image/info.json" />
+                <small class="description"><?php _e( 'Enter a tiny-iiif URL to sideload it into the collection.', 'arwai-image-annotator' ); ?></small>
+            </p>
             <p><label><input type="checkbox" name="<?php echo esc_attr( self::META_SET_FIRST_AS_FEATURED ); ?>" value="yes" <?php checked( get_post_meta( $post->ID, self::META_SET_FIRST_AS_FEATURED, true ), 'yes' ); ?> /> <?php _e( 'Use the first image in this collection as the post\'s featured image.', 'arwai-image-annotator' ); ?></label></p>
         </div>
         <style>#arwai-multi-image-uploader-container .arwai-multi-image-list li { cursor: move; position: relative; width: 100px; height: 100px; margin: 5px; border: 1px solid #ccc; display: flex; align-items: center; justify-content: center; overflow: hidden; } #arwai-multi-image-uploader-container .arwai-multi-image-list { display: flex; flex-wrap: wrap; list-style: none; margin: 0; padding: 0; } #arwai-multi-image-uploader-container .arwai-multi-image-list li img { max-width: 100%; max-height: 100%; object-fit: contain; } #arwai-multi-image-uploader-container .arwai-multi-image-remove { position: absolute; top: 0; right: 0; background: rgba(255,0,0,0.7); color: white; padding: 3px; cursor: pointer; line-height: 1; text-decoration: none; } .arwai-multi-image-placeholder { background-color: #f0f0f0; border: 1px dashed #ccc; height: 100px; width: 100px; margin: 5px; list-style-type: none; }</style>
@@ -768,6 +778,16 @@ public function load_public_scripts() {
             delete_post_meta($post_id, self::META_IMAGE_IDS);
         }
 
+        // Handle IIIF URL Sideloading
+        if ( isset( $_POST['iiif_image_url'] ) ) {
+            $iiif_url = esc_url_raw( $_POST['iiif_image_url'] );
+            if ( ! empty( $iiif_url ) ) {
+                update_post_meta( $post_id, 'iiif_image_url', $iiif_url );
+                $this->sideload_iiif_image( $post_id, $iiif_url );
+                delete_post_meta( $post_id, 'iiif_image_url' );
+            }
+        }
+
         // Save "Set first image in collection as the post's Featured Image"
         $set_featured = isset($_POST[self::META_SET_FIRST_AS_FEATURED]) ? 'yes' : 'no';
         update_post_meta($post_id, self::META_SET_FIRST_AS_FEATURED, $set_featured);
@@ -775,6 +795,68 @@ public function load_public_scripts() {
             $ids = json_decode(get_post_meta($post_id, self::META_IMAGE_IDS, true), true);
             if (!empty($ids) && intval($ids[0]) > 0) {
                 set_post_thumbnail($post_id, intval($ids[0]));
+            }
+        }
+    }
+
+    /**
+     * Sideloads an image from a IIIF endpoint and attaches it to the post.
+     *
+     * @param int    $post_id  The ID of the post to attach the image to.
+     * @param string $iiif_url The IIIF endpoint URL.
+     */
+    private function sideload_iiif_image( $post_id, $iiif_url ) {
+        $preview_url = $iiif_url;
+        if ( strpos( $preview_url, 'info.json' ) !== false ) {
+            $preview_url = str_replace( 'info.json', 'full/1200,/0/default.jpg', $preview_url );
+        }
+
+        $response = wp_remote_get( $preview_url, array( 'timeout' => 30 ) );
+        if ( is_wp_error( $response ) || 200 !== wp_remote_retrieve_response_code( $response ) ) {
+            return;
+        }
+
+        $image_data = wp_remote_retrieve_body( $response );
+        $filename = basename( parse_url( $iiif_url, PHP_URL_PATH ) );
+        if ( empty( $filename ) || $filename === 'info.json' ) {
+            $filename = 'iiif-image-' . time() . '.jpg';
+        } else {
+             $filename = str_replace('.json', '.jpg', $filename);
+             if (strpos($filename, '.') === false) $filename .= '.jpg';
+        }
+
+        $upload = wp_upload_bits( $filename, null, $image_data );
+        if ( $upload['error'] ) {
+            return;
+        }
+
+        $wp_filetype = wp_check_filetype( $upload['file'], null );
+        $attachment = array(
+            'post_mime_type' => $wp_filetype['type'],
+            'post_title'     => sanitize_file_name( $filename ),
+            'post_content'   => '',
+            'post_status'    => 'inherit'
+        );
+
+        $attach_id = wp_insert_attachment( $attachment, $upload['file'], $post_id );
+        if ( ! is_wp_error( $attach_id ) ) {
+            require_once( ABSPATH . 'wp-admin/includes/image.php' );
+            $attach_data = wp_generate_attachment_metadata( $attach_id, $upload['file'] );
+            wp_update_attachment_metadata( $attach_id, $attach_data );
+
+            // Store original IIIF URL on the attachment
+            update_post_meta( $attach_id, self::ATTACHMENT_META_IIIF_SOURCE, $iiif_url );
+
+            // Add to post collection
+            $image_ids_json = get_post_meta( $post_id, self::META_IMAGE_IDS, true );
+            $image_ids = json_decode( $image_ids_json, true );
+            if ( ! is_array( $image_ids ) ) { $image_ids = array(); }
+            $image_ids[] = $attach_id;
+            update_post_meta( $post_id, self::META_IMAGE_IDS, json_encode( array_values( array_map( 'intval', $image_ids ) ) ) );
+
+            // Set as featured if none exists
+            if ( ! has_post_thumbnail( $post_id ) ) {
+                set_post_thumbnail( $post_id, $attach_id );
             }
         }
     }
@@ -915,14 +997,19 @@ public function load_public_scripts() {
             }
         }
 
+        $iiif_source_url = isset($_POST['iiif_source_url']) ? esc_url_raw($_POST['iiif_source_url']) : '';
+        $parent_post_id = isset($_POST['post_id']) ? intval($_POST['post_id']) : 0;
+
         $inserted = $wpdb->insert(
             $this->table_name,
             array(
                 'annotation_id_from_annotorious' => $annotation_id_from_annotorious,
                 'attachment_id' => $attachment_id,
+                'post_id' => $parent_post_id,
+                'iiif_source_url' => $iiif_source_url,
                 'annotation_data' => wp_json_encode($annotation)
             ),
-            array('%s', '%d', '%s')
+            array('%s', '%d', '%d', '%s', '%s')
         );
 
         if ($inserted) {
@@ -950,10 +1037,12 @@ public function load_public_scripts() {
             $wpdb->insert( $this->history_table_name, array(
                 'annotation_id_from_annotorious' => $annotation_id_from_annotorious,
                 'attachment_id' => $attachment_id,
+                'post_id' => $parent_post_id,
+                'iiif_source_url' => $iiif_source_url,
                 'action_type' => 'created',
                 'annotation_data_snapshot' => wp_json_encode($annotation),
                 'user_id' => get_current_user_id()
-            ), array('%s', '%d', '%s', '%s', '%d') );
+            ), array('%s', '%d', '%d', '%s', '%s', '%s', '%d') );
 
             wp_send_json_success(['annotation' => $annotation]);
 
@@ -1030,10 +1119,31 @@ public function load_public_scripts() {
             }
         }
 
-        $updated = $wpdb->update( $this->table_name, array('annotation_data' => wp_json_encode($annotation)), array('annotation_id_from_annotorious' => $annoid, 'attachment_id' => $attachment_id), array('%s'), array('%s', '%d') );
+        $iiif_source_url = isset($_POST['iiif_source_url']) ? esc_url_raw($_POST['iiif_source_url']) : '';
+        $parent_post_id = isset($_POST['post_id']) ? intval($_POST['post_id']) : 0;
+
+        $updated = $wpdb->update(
+            $this->table_name,
+            array(
+                'annotation_data' => wp_json_encode($annotation),
+                'post_id' => $parent_post_id,
+                'iiif_source_url' => $iiif_source_url
+            ),
+            array('annotation_id_from_annotorious' => $annoid, 'attachment_id' => $attachment_id),
+            array('%s', '%d', '%s'),
+            array('%s', '%d')
+        );
 
         if ($updated) {
-            $wpdb->insert( $this->history_table_name, array('annotation_id_from_annotorious' => $annoid, 'attachment_id' => $attachment_id, 'action_type' => 'updated', 'annotation_data_snapshot' => wp_json_encode($annotation), 'user_id' => get_current_user_id()), array('%s', '%d', '%s', '%s', '%d') );
+            $wpdb->insert( $this->history_table_name, array(
+                'annotation_id_from_annotorious' => $annoid,
+                'attachment_id' => $attachment_id,
+                'post_id' => $parent_post_id,
+                'iiif_source_url' => $iiif_source_url,
+                'action_type' => 'updated',
+                'annotation_data_snapshot' => wp_json_encode($annotation),
+                'user_id' => get_current_user_id()
+            ), array('%s', '%d', '%d', '%s', '%s', '%s', '%d') );
             wp_send_json_success();
         } else {
             wp_send_json_error();

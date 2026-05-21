@@ -135,7 +135,7 @@ jQuery(document).ready(function($) {
     }
 
     // --- 1. GLOBAL VARIABLES & SELECTORS ---
-    const { containerId, images, ajax_url, anno_options } = Arwai_Annotator_Data;
+    const { containerId, images, post_id, ajax_url, anno_options } = Arwai_Annotator_Data;
     const container = $('#' + containerId);
     if (!container.length || images.length === 0) return;
 
@@ -390,10 +390,15 @@ jQuery(document).ready(function($) {
      */
     function handleAnnotationCRUD(action, annotation, annoInstance) {
         let attachmentId;
+        let iiifSourceUrl;
         if (annoInstance === osdAnno) {
-            attachmentId = images[osdViewer.currentPage()].post_id;
+            const currentImage = images[osdViewer.currentPage()];
+            attachmentId = currentImage.post_id;
+            iiifSourceUrl = currentImage.iiif_source_url;
         } else {
             attachmentId = mainImage.data('attachment-id');
+            const currentImageData = images.find(img => img.post_id === attachmentId);
+            iiifSourceUrl = currentImageData ? currentImageData.iiif_source_url : '';
         }
 
         if (!attachmentId) return;
@@ -410,7 +415,10 @@ jQuery(document).ready(function($) {
                 const postData = {
                     action: ajaxAction,
                     annotation: JSON.stringify(annot),
-                    nonce: anno_options.annoNonce
+                    attachment_id: attachmentId,
+                    nonce: anno_options.annoNonce,
+                    iiif_source_url: iiifSourceUrl,
+                    post_id: post_id
                 };
                 if (action === 'update') postData.annotationid = annot.id;
 
@@ -621,7 +629,13 @@ jQuery(document).ready(function($) {
         }
 
         setTimeout(function() {
-            const osdTileSources = images.map(img => ({ type: 'image', url: img.fullUrl }));
+            const osdTileSources = images.map(img => {
+                if (img.iiif_source_url.includes('info.json')) {
+                    return img.iiif_source_url;
+                } else {
+                    return { type: 'image', url: img.iiif_source_url };
+                }
+            });
             osdViewer = OpenSeadragon({
                 id: 'arwai-osd-viewer',
                 showNavigator: false,
