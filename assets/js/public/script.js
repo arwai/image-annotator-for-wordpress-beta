@@ -193,7 +193,18 @@ jQuery(document).ready(function($) {
     handleResponsiveSliderImages();
 
     // Re-run the function when the window is resized to handle orientation changes or browser resizing.
-    $(window).on('resize', handleResponsiveSliderImages);
+    $(window).on('resize', function() {
+        handleResponsiveSliderImages();
+
+        // Force Annotorious to recalculate coordinates against new image dimensions
+        if (simpleAnno && mainImage) {
+            const attachmentId = mainImage.data('attachment-id');
+            if (attachmentId && annotationCache[attachmentId]) {
+                simpleAnno.clearAnnotations();
+                simpleAnno.setAnnotations(annotationCache[attachmentId]);
+            }
+        }
+    });
 
     // Generic function to load annotations from the server into ANY Annotorious instance
     function loadAnnotations(attachmentId, annoInstance) {
@@ -568,16 +579,21 @@ jQuery(document).ready(function($) {
         
         if (!mainImage.length) return;
 
-        mainImage.one('load', function() {
+        const imgEl = mainImage[0];
+
+        const proceedWithInit = (img) => {
             // Ensure the image has dimensions before initializing.
             // Clustering at top-left often happens when width/height are 0 during init.
-            if (this.naturalWidth === 0 || this.offsetWidth === 0) {
-                setTimeout(() => initSimpleAnnotorious(), 100);
+            if (img.naturalWidth === 0 || img.offsetWidth === 0) {
+                // If the DOM hasn't settled, wait for the next paint.
+                requestAnimationFrame(() => {
+                    initSimpleAnnotorious();
+                });
                 return;
             }
 
             const annoConfig = {
-                image: this,
+                image: img,
                 formatters: [arwaiIdFormatter, arwaiStyleFormatter],
                 fragmentUnit: 'percent',
                 adapter: Annotorious.W3CImageAdapter,
@@ -595,18 +611,29 @@ jQuery(document).ready(function($) {
                 simpleAnno.setAuthInfo({ id: anno_options.currentUser.id, displayName: anno_options.currentUser.displayName });
             }
 
-             attachEventHandlers(simpleAnno, this);
+             attachEventHandlers(simpleAnno, img);
             
-            const currentAttachmentId = $(this).data('attachment-id');
+            const currentAttachmentId = $(img).data('attachment-id');
             if (currentAttachmentId) {
                 loadAnnotations(currentAttachmentId, simpleAnno);
             }
             simpleAnno.setVisible(true);
-        }).each(function() {
-            if (this.complete) {
-                $(this).trigger('load');
+        };
+
+        if (imgEl.complete && imgEl.naturalWidth !== 0) {
+            proceedWithInit(imgEl);
+        } else {
+            $(imgEl).one('load', function() {
+                // Wrap in requestAnimationFrame to ensure layout after load
+                requestAnimationFrame(() => {
+                    proceedWithInit(this);
+                });
+            });
+            // Fallback for cases where 'complete' might be true but naturalWidth is 0 (broken images)
+            if (imgEl.complete) {
+                 $(imgEl).trigger('load');
             }
-        });
+        }
     }
 
 
@@ -753,7 +780,9 @@ jQuery(document).ready(function($) {
             currentIndexSpan.text(currentIndex + 1);
             thumbnails.removeClass('active').eq(currentIndex).addClass('active');
             if (singleAnnotationContainer.length) singleAnnotationContainer.hide();
-            initSimpleAnnotorious();
+            requestAnimationFrame(() => {
+                initSimpleAnnotorious();
+            });
         });
         prevButton.on('click', () => slickSlider.slick('slickPrev'));
         nextButton.on('click', () => slickSlider.slick('slickNext'));
