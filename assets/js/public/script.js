@@ -148,7 +148,6 @@ jQuery(document).ready(function($) {
     const slideNav = container.find('.arwai-simple-viewer-nav');
 
     const slickSlider = container.find('.arwai-slick-slider'); // selector for Slick
-    let mainImage; // This will be redefined on slide change
     
     // Shared / OSD elements
     const toggleButton = $('#arwai-toggle-annotations');
@@ -164,6 +163,7 @@ jQuery(document).ready(function($) {
 
 
     // --- 2. STATE MANAGEMENT ---
+    window.arwaiAnnotationCache = {}; // Global cache for annotations keyed by attachmentId
     let currentIndex = 0;
     let simpleAnno = null; // Annotorious instance for the simple viewer
     let osdViewer = null;  // OpenSeadragon viewer instance
@@ -194,10 +194,42 @@ jQuery(document).ready(function($) {
     // Re-run the function when the window is resized to handle orientation changes or browser resizing.
     $(window).on('resize', handleResponsiveSliderImages);
 
+    // Debounce function to limit the rate at which a function can fire.
+    function debounce(func, wait) {
+        let timeout;
+        return function(...args) {
+            clearTimeout(timeout);
+            timeout = setTimeout(() => func.apply(this, args), wait);
+        };
+    }
+
+    // Debounced resize handler to force Annotorious to recalculate percentages
+    const handleResize = debounce(function() {
+        if (!simpleAnno || !annotationsVisible) return;
+
+        const $activeSlide = slickSlider.find('.slick-current:not(.slick-cloned)');
+        const $img = $activeSlide.find('img');
+        const attachmentId = $img.data('attachment-id');
+
+        if (attachmentId && window.arwaiAnnotationCache[attachmentId]) {
+            requestAnimationFrame(() => {
+                simpleAnno.clearAnnotations();
+                simpleAnno.setAnnotations(window.arwaiAnnotationCache[attachmentId]);
+            });
+        }
+    }, 200);
+
+    $(window).on('resize', handleResize);
+
     // Generic function to load annotations from the server into ANY Annotorious instance
     function loadAnnotations(attachmentId, annoInstance) {
         if (!annoInstance || !attachmentId) return;
         annoInstance.clearAnnotations();
+
+        // Check if we already have it in cache for immediate display
+        if (window.arwaiAnnotationCache[attachmentId]) {
+            annoInstance.setAnnotations(window.arwaiAnnotationCache[attachmentId]);
+        }
 
         $.ajax({
             url: ajax_url,
@@ -205,6 +237,7 @@ jQuery(document).ready(function($) {
             dataType: 'json',
             success: function(annotations) {
                 if (Array.isArray(annotations)) {
+                    window.arwaiAnnotationCache[attachmentId] = annotations;
                     annoInstance.setAnnotations(annotations);
                 }
             }
@@ -353,7 +386,38 @@ jQuery(document).ready(function($) {
 
 
     function attachEventHandlers(annoInstance) {
+        function getActiveAttachmentId() {
+            if (annoInstance === osdAnno && osdViewer) {
+                return images[osdViewer.currentPage()].post_id;
+            } else {
+                return slickSlider.find('.slick-current img').data('attachment-id');
+            }
+        }
+
+        function updateCache(attachmentId, annotation, action) {
+            if (!attachmentId) return;
+            if (!window.arwaiAnnotationCache[attachmentId]) {
+                window.arwaiAnnotationCache[attachmentId] = [];
+            }
+
+            const cache = window.arwaiAnnotationCache[attachmentId];
+            const index = cache.findIndex(a => a.id === annotation.id);
+
+            if (action === 'add' || action === 'update') {
+                if (index > -1) {
+                    cache[index] = annotation;
+                } else {
+                    cache.push(annotation);
+                }
+            } else if (action === 'delete') {
+                if (index > -1) {
+                    cache.splice(index, 1);
+                }
+            }
+        }
+
         annoInstance.on('createAnnotation', function(annotation) {
+            const attachmentId = getActiveAttachmentId();
             // Snippet saving logic is now conditional
             if (annoInstance === osdAnno) {
                 const imageUrl = images[osdViewer.currentPage()].fullUrl;
@@ -368,6 +432,7 @@ jQuery(document).ready(function($) {
                         if (response.success && response.data.annotation) {
                             annoInstance.removeAnnotation(annotation);
                             annoInstance.addAnnotation(response.data.annotation);
+                            updateCache(attachmentId, response.data.annotation, 'add');
                         }
                     });
                 };
@@ -378,12 +443,16 @@ jQuery(document).ready(function($) {
                     if (response.success && response.data.annotation) {
                         annoInstance.removeAnnotation(annotation);
                         annoInstance.addAnnotation(response.data.annotation);
+                        updateCache(attachmentId, response.data.annotation, 'add');
                     }
                 });
             }
         });
 
         annoInstance.on('updateAnnotation', function(annotation) {
+            const attachmentId = getActiveAttachmentId();
+            updateCache(attachmentId, annotation, 'update');
+
             if (annoInstance === osdAnno) {
                 const imageUrl = images[osdViewer.currentPage()].fullUrl;
                 const imageEl = new Image();
@@ -395,7 +464,11 @@ jQuery(document).ready(function($) {
                     if (canvas) {
                         annotation.body.push({ type: 'TextualBody', purpose: 'arwai-snippet', value: canvas.toDataURL('image/png') });
                     }
-                    $.post(ajax_url, { action: 'arwai_anno_update', annotation: JSON.stringify(annotation), annotationid: annotation.id, nonce: anno_options.annoNonce });
+                    $.post(ajax_url, { action: 'arwai_anno_update', annotation: JSON.stringify(annotation), annotationid: annotation.id, nonce: anno_options.annoNonce }).done(response => {
+                         if (response.success && response.data.annotation) {
+                             updateCache(attachmentId, response.data.annotation, 'update');
+                         }
+                    });
                 };
                 imageEl.src = imageUrl;
             } else {
@@ -404,6 +477,8 @@ jQuery(document).ready(function($) {
         });
 
         annoInstance.on('deleteAnnotation', function(annotation) {
+            const attachmentId = getActiveAttachmentId();
+            updateCache(attachmentId, annotation, 'delete');
             $.post(ajax_url, { action: 'arwai_anno_delete', annotation: JSON.stringify(annotation), annotationid: annotation.id, nonce: anno_options.annoNonce });
         });
         
@@ -491,54 +566,70 @@ jQuery(document).ready(function($) {
     
     // --- 4. SIMPLE VIEWER LOGIC ---
     function initSimpleAnnotorious() {
+        // Destroy existing instance properly
         if (simpleAnno) {
             simpleAnno.destroy();
             simpleAnno = null;
             highlightedAnnotation = null;
         }
 
-        if (slickSlider.hasClass('slick-initialized')) {
-            mainImage = slickSlider.find('.slick-current img');
-        } else {
-            mainImage = slickSlider.find('img').first();
-        }
+        // Target ONLY visible, non-cloned slide
+        const $activeSlide = slickSlider.hasClass('slick-initialized')
+            ? slickSlider.find('.slick-current:not(.slick-cloned)')
+            : slickSlider.find('.arwai-slick-slide').first();
         
-        if (!mainImage.length) return;
+        const $img = $activeSlide.find('img');
+        if (!$img.length) return;
 
-        mainImage.one('load', function() {
-            const annoConfig = {
-                image: this,
-                formatters: [arwaiIdFormatter, arwaiStyleFormatter],
-                fragmentUnit: 'percent',
-                adapter: Annotorious.W3CImageAdapter,
-                readOnly: true,
-                disableEditor: true,
-                allowEmpty: anno_options.allowEmpty,
-                drawOnSingleClick: anno_options.drawOnSingleClick,
-                widgets: [ 'COMMENT', { widget: 'TAG', vocabulary: anno_options.tagVocabulary || [] } ],
-                messages: { "Add a comment...": "Add a comment...", "Add a reply...": "Add a reply...", "Add tag...": "Add tag or name...", "Cancel": "Cancel", "Close": "Close", "Edit": "Edit", "Delete": "Delete", "Ok": "Ok" }
-            };
+        const imgEl = $img[0];
 
-            simpleAnno = Annotorious.init(annoConfig);
-
-            if (anno_options.currentUser) {
-                simpleAnno.setAuthInfo({ id: anno_options.currentUser.id, displayName: anno_options.currentUser.displayName });
-            }
-
-             attachEventHandlers(simpleAnno, this);
-            
-            if (annotationsVisible) {
-                const currentAttachmentId = $(this).data('attachment-id');
-                if (currentAttachmentId) {
-                    loadAnnotations(currentAttachmentId, simpleAnno);
+        function startAnnotorious() {
+            // Strict Timing: Wrap in RAF to ensure paint and layout are finished
+            requestAnimationFrame(() => {
+                // Double check image state inside RAF
+                if (!imgEl.complete || imgEl.naturalWidth === 0) {
+                    imgEl.onload = startAnnotorious;
+                    return;
                 }
-            }
-            simpleAnno.setVisible(annotationsVisible);
-        }).each(function() {
-            if (this.complete) {
-                $(this).trigger('load');
-            }
-        });
+
+                if (simpleAnno) return; // Prevent double init
+
+                const annoConfig = {
+                    image: imgEl,
+                    formatters: [arwaiIdFormatter, arwaiStyleFormatter],
+                    fragmentUnit: 'percent',
+                    adapter: Annotorious.W3CImageAdapter,
+                    readOnly: true,
+                    disableEditor: true,
+                    allowEmpty: anno_options.allowEmpty,
+                    drawOnSingleClick: anno_options.drawOnSingleClick,
+                    widgets: [ 'COMMENT', { widget: 'TAG', vocabulary: anno_options.tagVocabulary || [] } ],
+                    messages: { "Add a comment...": "Add a comment...", "Add a reply...": "Add a reply...", "Add tag...": "Add tag or name...", "Cancel": "Cancel", "Close": "Close", "Edit": "Edit", "Delete": "Delete", "Ok": "Ok" }
+                };
+
+                simpleAnno = Annotorious.init(annoConfig);
+
+                if (anno_options.currentUser) {
+                    simpleAnno.setAuthInfo({ id: anno_options.currentUser.id, displayName: anno_options.currentUser.displayName });
+                }
+
+                attachEventHandlers(simpleAnno);
+
+                if (annotationsVisible) {
+                    const currentAttachmentId = $img.data('attachment-id');
+                    if (currentAttachmentId) {
+                        loadAnnotations(currentAttachmentId, simpleAnno);
+                    }
+                }
+                simpleAnno.setVisible(annotationsVisible);
+            });
+        }
+
+        if (imgEl.complete && imgEl.naturalWidth > 0) {
+            startAnnotorious();
+        } else {
+            imgEl.onload = startAnnotorious;
+        }
     }
 
 
@@ -634,15 +725,10 @@ jQuery(document).ready(function($) {
         }
         osdModal.hide();
         updateView(currentIndex);
-        setTimeout(() => {
-            initSimpleAnnotorious();
-            if (annotationsVisible && simpleAnno) {
-                const currentAttachmentId = slickSlider.find('.slick-current img').data('attachment-id');
-                if (currentAttachmentId) {
-                    loadAnnotations(currentAttachmentId, simpleAnno);
-                }
-            }
-        }, 50);
+
+        // Removed arbitrary setTimeout. Using the new strict initSimpleAnnotorious
+        // which handles RAF and image loading.
+        initSimpleAnnotorious();
     }
 
     // --- 6. EVENT BINDING & INITIALIZATION ---
@@ -732,15 +818,29 @@ jQuery(document).ready(function($) {
         annotationsVisible = !annotationsVisible;
         const activeAnno = osdViewer ? osdAnno : simpleAnno;
         if (!activeAnno) return;
-        if (annotationsVisible && activeAnno.getAnnotations().length === 0) {
+        if (annotationsVisible) {
             let currentAttachmentId;
             if (osdViewer) {
                 currentAttachmentId = images[currentIndex].post_id;
-            } else if (mainImage && mainImage.length) {
-                currentAttachmentId = mainImage.data('attachment-id');
+            } else {
+                const $activeSlide = slickSlider.find('.slick-current:not(.slick-cloned)');
+                const $img = $activeSlide.find('img');
+                currentAttachmentId = $img.data('attachment-id');
             }
+
             if (currentAttachmentId) {
-                loadAnnotations(currentAttachmentId, activeAnno);
+                // If it's the simple viewer, force a recalculation using RAF
+                if (!osdViewer && activeAnno === simpleAnno) {
+                    requestAnimationFrame(() => {
+                        activeAnno.clearAnnotations();
+                        // This will pull from cache or AJAX
+                        loadAnnotations(currentAttachmentId, activeAnno);
+                    });
+                } else {
+                    if (activeAnno.getAnnotations().length === 0) {
+                        loadAnnotations(currentAttachmentId, activeAnno);
+                    }
+                }
             }
         }
         activeAnno.setVisible(annotationsVisible);
