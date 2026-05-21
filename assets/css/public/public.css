@@ -215,6 +215,8 @@
 .arwai-slick-slide-wrapper img {
     max-width: 100%;
     max-height: 100%;
+    height: auto !important; /* Requirement: <img> must remain tightly wrapped around actual pixels */
+    width: auto !important;
     object-fit: contain;
 }
 
@@ -261,14 +263,12 @@
 
 /* Responsive styles for the slider */
 @media (orientation: portrait) and (min-width: 1200px) {
-    .slick-slide img,
     .slick-slide {
         height: 80vw;
     }
 }
 
 @media (orientation: landscape) and (min-width: 1200px) {
-    .slick-slide img,
     .slick-slide {
         width: 80vh;
         height: 60vh;
@@ -276,14 +276,12 @@
 }
 
 @media (orientation: portrait) and (max-width: 767px) {
-    .slick-slide img,
     .slick-slide {
         height: 130vw;
     }
 }
 
 @media (orientation: landscape) and (max-width: 1200px) {
-    .slick-slide img,
     .slick-slide {
         width: 80vh;
         height: 78vh;
