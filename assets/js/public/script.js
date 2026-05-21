@@ -42,9 +42,13 @@ const arwaiIdFormatter = function(annotation) {
     } else {
       foreignObject.setAttribute('width', '24');
       foreignObject.setAttribute('height', '24');
-      label.setAttribute('width', '1');
-      label.setAttribute('height', '1');
-      label.setAttribute('style', 'transform: translate(-12px, -12px);');
+
+      // Explicitly set dimensions on the label for Firefox consistency
+      label.style.display = 'block';
+      label.style.width = '24px';
+      label.style.height = '24px';
+      label.style.boxSizing = 'border-box';
+      label.setAttribute('style', 'transform: translate(-12px, -12px); display: block; width: 24px; height: 24px;');
     }
 
     // 5. Append the HTML label inside the SVG wrapper
@@ -165,6 +169,7 @@ jQuery(document).ready(function($) {
     // --- 2. STATE MANAGEMENT ---
     window.arwaiAnnotationCache = {}; // Global cache for annotations keyed by attachmentId
     let currentIndex = 0;
+    let lastInitToken = 0; // Token to track the latest initialization request
     let simpleAnno = null; // Annotorious instance for the simple viewer
     let osdViewer = null;  // OpenSeadragon viewer instance
     let osdAnno = null;    // Annotorious instance for OSD
@@ -212,7 +217,7 @@ jQuery(document).ready(function($) {
         const attachmentId = $img.data('attachment-id');
 
         if (attachmentId && window.arwaiAnnotationCache[attachmentId]) {
-            requestAnimationFrame(() => {
+            waitForDimensions($img[0], () => {
                 simpleAnno.clearAnnotations();
                 simpleAnno.setAnnotations(window.arwaiAnnotationCache[attachmentId]);
             });
@@ -564,8 +569,41 @@ jQuery(document).ready(function($) {
     });
     
     
+    /**
+     * A utility to poll for image readiness and physical dimensions.
+     * Fires the callback only when the image is fully loaded and painted with >0px dimensions.
+     */
+    function waitForDimensions(imgEl, callback) {
+        if (!imgEl) return;
+
+        let attempts = 0;
+        const maxAttempts = 30; // ~500ms at 60fps
+
+        function check() {
+            const hasDimensions = imgEl.complete && imgEl.naturalWidth > 0 && imgEl.clientWidth > 0 && imgEl.clientHeight > 0;
+
+            if (hasDimensions) {
+                // Nested RAF for Firefox safety to ensure layout engine has fully caught up
+                requestAnimationFrame(() => {
+                    requestAnimationFrame(() => {
+                        callback();
+                    });
+                });
+            } else if (attempts < maxAttempts) {
+                attempts++;
+                requestAnimationFrame(check);
+            } else {
+                console.warn('Image dimensions could not be resolved for attachment:', imgEl.dataset.attachmentId);
+            }
+        }
+
+        check();
+    }
+
     // --- 4. SIMPLE VIEWER LOGIC ---
     function initSimpleAnnotorious() {
+        const currentToken = ++lastInitToken;
+
         // Destroy existing instance properly
         if (simpleAnno) {
             simpleAnno.destroy();
@@ -583,53 +621,45 @@ jQuery(document).ready(function($) {
 
         const imgEl = $img[0];
 
-        function startAnnotorious() {
-            // Strict Timing: Wrap in RAF to ensure paint and layout are finished
-            requestAnimationFrame(() => {
-                // Double check image state inside RAF
-                if (!imgEl.complete || imgEl.naturalWidth === 0) {
-                    imgEl.onload = startAnnotorious;
-                    return;
+        waitForDimensions(imgEl, function() {
+            // Bail if a newer initialization request has been made
+            if (currentToken !== lastInitToken) return;
+
+            // Double check that we are still on the same image
+            const $checkSlide = slickSlider.find('.slick-current:not(.slick-cloned)');
+            if ($checkSlide.find('img')[0] !== imgEl) return;
+
+            if (simpleAnno) return; // Prevent double init
+
+            const annoConfig = {
+                image: imgEl,
+                formatters: [arwaiIdFormatter, arwaiStyleFormatter],
+                fragmentUnit: 'percent',
+                adapter: Annotorious.W3CImageAdapter,
+                readOnly: true,
+                disableEditor: true,
+                allowEmpty: anno_options.allowEmpty,
+                drawOnSingleClick: anno_options.drawOnSingleClick,
+                widgets: [ 'COMMENT', { widget: 'TAG', vocabulary: anno_options.tagVocabulary || [] } ],
+                messages: { "Add a comment...": "Add a comment...", "Add a reply...": "Add a reply...", "Add tag...": "Add tag or name...", "Cancel": "Cancel", "Close": "Close", "Edit": "Edit", "Delete": "Delete", "Ok": "Ok" }
+            };
+
+            simpleAnno = Annotorious.init(annoConfig);
+
+            if (anno_options.currentUser) {
+                simpleAnno.setAuthInfo({ id: anno_options.currentUser.id, displayName: anno_options.currentUser.displayName });
+            }
+
+            attachEventHandlers(simpleAnno);
+
+            if (annotationsVisible) {
+                const currentAttachmentId = $img.data('attachment-id');
+                if (currentAttachmentId) {
+                    loadAnnotations(currentAttachmentId, simpleAnno);
                 }
-
-                if (simpleAnno) return; // Prevent double init
-
-                const annoConfig = {
-                    image: imgEl,
-                    formatters: [arwaiIdFormatter, arwaiStyleFormatter],
-                    fragmentUnit: 'percent',
-                    adapter: Annotorious.W3CImageAdapter,
-                    readOnly: true,
-                    disableEditor: true,
-                    allowEmpty: anno_options.allowEmpty,
-                    drawOnSingleClick: anno_options.drawOnSingleClick,
-                    widgets: [ 'COMMENT', { widget: 'TAG', vocabulary: anno_options.tagVocabulary || [] } ],
-                    messages: { "Add a comment...": "Add a comment...", "Add a reply...": "Add a reply...", "Add tag...": "Add tag or name...", "Cancel": "Cancel", "Close": "Close", "Edit": "Edit", "Delete": "Delete", "Ok": "Ok" }
-                };
-
-                simpleAnno = Annotorious.init(annoConfig);
-
-                if (anno_options.currentUser) {
-                    simpleAnno.setAuthInfo({ id: anno_options.currentUser.id, displayName: anno_options.currentUser.displayName });
-                }
-
-                attachEventHandlers(simpleAnno);
-
-                if (annotationsVisible) {
-                    const currentAttachmentId = $img.data('attachment-id');
-                    if (currentAttachmentId) {
-                        loadAnnotations(currentAttachmentId, simpleAnno);
-                    }
-                }
-                simpleAnno.setVisible(annotationsVisible);
-            });
-        }
-
-        if (imgEl.complete && imgEl.naturalWidth > 0) {
-            startAnnotorious();
-        } else {
-            imgEl.onload = startAnnotorious;
-        }
+            }
+            simpleAnno.setVisible(annotationsVisible);
+        });
     }
 
 
@@ -831,7 +861,9 @@ jQuery(document).ready(function($) {
             if (currentAttachmentId) {
                 // If it's the simple viewer, force a recalculation using RAF
                 if (!osdViewer && activeAnno === simpleAnno) {
-                    requestAnimationFrame(() => {
+                    const $activeSlide = slickSlider.find('.slick-current:not(.slick-cloned)');
+                    const $img = $activeSlide.find('img');
+                    waitForDimensions($img[0], () => {
                         activeAnno.clearAnnotations();
                         // This will pull from cache or AJAX
                         loadAnnotations(currentAttachmentId, activeAnno);
