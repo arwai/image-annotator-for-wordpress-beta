@@ -569,12 +569,10 @@ jQuery(document).ready(function($) {
         if (!mainImage.length) return;
 
         mainImage.one('load', function() {
-            // Ensure the image has dimensions and is actually visible in the DOM before initializing.
+            // Ensure the image has dimensions before initializing.
             // Clustering at top-left often happens when width/height are 0 during init.
             if (this.naturalWidth === 0 || this.offsetWidth === 0) {
-                // Use a slightly longer delay if it fails initially, as subsequent slides
-                // might still be transitioning or loading.
-                setTimeout(() => initSimpleAnnotorious(), 200);
+                setTimeout(() => initSimpleAnnotorious(), 100);
                 return;
             }
 
@@ -755,11 +753,7 @@ jQuery(document).ready(function($) {
             currentIndexSpan.text(currentIndex + 1);
             thumbnails.removeClass('active').eq(currentIndex).addClass('active');
             if (singleAnnotationContainer.length) singleAnnotationContainer.hide();
-
-            // Ensure the slide transition is complete and layout is stable
-            requestAnimationFrame(() => {
-                initSimpleAnnotorious();
-            });
+            initSimpleAnnotorious();
         });
         prevButton.on('click', () => slickSlider.slick('slickPrev'));
         nextButton.on('click', () => slickSlider.slick('slickNext'));
