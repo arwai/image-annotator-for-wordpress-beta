@@ -405,12 +405,12 @@ public function load_public_scripts() {
             // The <img> 'src' will be the 'medium' size for mobile-first loading.
             // The 'large' image URL is stored in 'data-large-src' for JS to use on desktop.
             $slides_html = '';
-            foreach ($image_ids as $id) {
+            foreach ($image_ids as $index => $id) {
                 $medium_image_html = wp_get_attachment_image( $id, 'medium_large', false, array(
                     'data-large-src'   => wp_get_attachment_image_url($id, 'large'),
                     'data-full-url'    => wp_get_attachment_image_url($id, 'full'),
                     'data-attachment-id' => $id,
-                    'loading'          => 'lazy'
+                    'loading'          => ($index === 0) ? 'eager' : 'lazy'
                 ));
                 $slides_html .= "<div><div class='arwai-slick-slide-wrapper'>" . $medium_image_html . "</div></div>";
             }

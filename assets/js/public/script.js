@@ -569,6 +569,13 @@ jQuery(document).ready(function($) {
         if (!mainImage.length) return;
 
         mainImage.one('load', function() {
+            // Ensure the image has dimensions before initializing.
+            // Clustering at top-left often happens when width/height are 0 during init.
+            if (this.naturalWidth === 0 || this.offsetWidth === 0) {
+                setTimeout(() => initSimpleAnnotorious(), 100);
+                return;
+            }
+
             const annoConfig = {
                 image: this,
                 formatters: [arwaiIdFormatter, arwaiStyleFormatter],
@@ -799,7 +806,11 @@ jQuery(document).ready(function($) {
             }
         } else {
             if (annotationsVisible) {
-                initSimpleAnnotorious();
+                // Using requestAnimationFrame to ensure the layout is stable before initialization.
+                // This helps prevent misaligned annotation boxes on the first toggle.
+                requestAnimationFrame(() => {
+                    initSimpleAnnotorious();
+                });
             } else if (simpleAnno) {
                 simpleAnno.destroy();
                 simpleAnno = null;
