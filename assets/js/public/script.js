@@ -630,10 +630,11 @@ jQuery(document).ready(function($) {
 
         setTimeout(function() {
             const osdTileSources = images.map(img => {
-                if (img.iiif_source_url.includes('info.json')) {
-                    return img.iiif_source_url;
+                const url = img.iiif_image_url || img.iiif_source_url;
+                if (url.includes('info.json')) {
+                    return url;
                 } else {
-                    return { type: 'image', url: img.iiif_source_url };
+                    return { type: 'image', url: url };
                 }
             });
             osdViewer = OpenSeadragon({

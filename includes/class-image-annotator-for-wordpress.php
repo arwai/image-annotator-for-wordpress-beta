@@ -284,6 +284,7 @@ public function load_public_scripts() {
                     $full_src = wp_get_attachment_image_src( $id, 'full' );
                     $thumb_src = wp_get_attachment_image_src( $id, 'thumbnail' );
                     $iiif_source = get_post_meta( $id, self::ATTACHMENT_META_IIIF_SOURCE, true );
+                    $iiif_image_url = get_post_meta( $id, '_iiif_image_url', true );
 
                     if ($large_src && $full_src) {
                         $carry[] = [
@@ -291,7 +292,8 @@ public function load_public_scripts() {
                             'largeUrl'     => $large_src[0],
                             'fullUrl'      => $full_src[0],
                             'thumbnailUrl' => $thumb_src ? $thumb_src[0] : '',
-                            'iiif_source_url' => !empty($iiif_source) ? $iiif_source : $full_src[0]
+                            'iiif_source_url' => !empty($iiif_source) ? $iiif_source : $full_src[0],
+                            'iiif_image_url'  => !empty($iiif_image_url) ? $iiif_image_url : $full_src[0]
                         ];
                     }
                     return $carry;
@@ -812,6 +814,7 @@ public function load_public_scripts() {
      * AJAX handler for IIIF sideloading.
      */
     public function arwai_sideload_iiif() {
+        global $wpdb;
         check_ajax_referer( 'arwai_sideload_nonce', 'nonce' );
         if ( ! current_user_can( 'edit_posts' ) ) {
             wp_send_json_error( 'Permission denied.' );
@@ -845,6 +848,7 @@ public function load_public_scripts() {
      * @return int|bool The attachment ID on success, false on failure.
      */
     private function sideload_iiif_image( $post_id, $iiif_url ) {
+        global $wpdb;
         // Initial fetch to determine if it's a manifest
         $response = wp_remote_get( $iiif_url, array( 'timeout' => 30 ) );
         if ( is_wp_error( $response ) || 200 !== wp_remote_retrieve_response_code( $response ) ) {
@@ -919,12 +923,16 @@ public function load_public_scripts() {
 
         $attach_id = wp_insert_attachment( $attachment, $upload['file'], $post_id );
         if ( ! is_wp_error( $attach_id ) ) {
+            // Update GUID to the file URL
+            $wpdb->update( $wpdb->posts, array( 'guid' => $upload['url'] ), array( 'ID' => $attach_id ) );
+
             require_once( ABSPATH . 'wp-admin/includes/image.php' );
             $attach_data = wp_generate_attachment_metadata( $attach_id, $upload['file'] );
             wp_update_attachment_metadata( $attach_id, $attach_data );
 
-            // Store original IIIF URL (or the extracted image URL) on the attachment
-            update_post_meta( $attach_id, self::ATTACHMENT_META_IIIF_SOURCE, $real_iiif_image_url );
+            // Store the original entered URL and the extracted image service URL
+            update_post_meta( $attach_id, self::ATTACHMENT_META_IIIF_SOURCE, $iiif_url );
+            update_post_meta( $attach_id, '_iiif_image_url', $real_iiif_image_url );
 
             // Add to post collection
             $image_ids_json = get_post_meta( $post_id, self::META_IMAGE_IDS, true );
@@ -1036,24 +1044,26 @@ public function load_public_scripts() {
 
 
     function anno_add() {
+        global $wpdb;
         check_ajax_referer( 'arwai_anno_nonce', 'nonce' );
 
         if ( ! is_user_logged_in() ) {
             wp_send_json_error( 'You must be logged in to create annotations.' );
         }
-
-        global $wpdb;
         $annotation_json = isset($_POST['annotation']) ? wp_unslash($_POST['annotation']) : '';
         if (empty($annotation_json)) { wp_send_json_error('Annotation data missing.'); }
 
         $annotation = json_decode($annotation_json, true);
         if (json_last_error() !== JSON_ERROR_NONE) { wp_send_json_error('Invalid JSON data.'); }
 
-        $image_url = $annotation['target']['source'] ?? '';
-        if (empty($image_url)) { wp_send_json_error('Annotation target source URL missing.'); }
-
-        $attachment_id = attachment_url_to_postid($image_url);
-        if (empty($attachment_id)) { wp_send_json_error('Could not find attachment ID for source URL.'); }
+        $attachment_id = isset($_POST['attachment_id']) ? intval($_POST['attachment_id']) : 0;
+        if (empty($attachment_id)) {
+            $image_url = $annotation['target']['source'] ?? '';
+            if (!empty($image_url)) {
+                $attachment_id = attachment_url_to_postid($image_url);
+            }
+        }
+        if (empty($attachment_id)) { wp_send_json_error('Could not find attachment ID.'); }
 
         $this->_sync_annotation_tags_to_attachment($attachment_id, $annotation['body']);
 
@@ -1136,20 +1146,24 @@ public function load_public_scripts() {
 
 
     function anno_delete() {
+        global $wpdb;
         check_ajax_referer( 'arwai_anno_nonce', 'nonce' );
 
         if ( ! is_user_logged_in() ) {
             wp_send_json_error( 'You must be logged in to delete annotations.' );
         }
-
-        global $wpdb;
         $annoid = isset($_POST['annotationid']) ? sanitize_text_field($_POST['annotationid']) : '';
         $annotation_json = isset($_POST['annotation']) ? wp_unslash($_POST['annotation']) : '';
         if (empty($annoid) || empty($annotation_json)) { wp_send_json_error('Missing data.'); }
         $annotation = json_decode($annotation_json, true);
         if (json_last_error() !== JSON_ERROR_NONE) { wp_send_json_error('Invalid JSON.'); }
-        $image_url = $annotation['target']['source'] ?? '';
-        $attachment_id = attachment_url_to_postid($image_url);
+        $attachment_id = isset($_POST['attachment_id']) ? intval($_POST['attachment_id']) : 0;
+        if (empty($attachment_id)) {
+            $image_url = $annotation['target']['source'] ?? '';
+            if (!empty($image_url)) {
+                $attachment_id = attachment_url_to_postid($image_url);
+            }
+        }
         if (empty($attachment_id)) { wp_send_json_error('Could not find attachment ID.'); }
 
         $existing = $wpdb->get_row( $wpdb->prepare( "SELECT annotation_data FROM {$this->table_name} WHERE annotation_id_from_annotorious = %s AND attachment_id = %d", $annoid, $attachment_id ), ARRAY_A );
@@ -1164,20 +1178,24 @@ public function load_public_scripts() {
     }
 
     function anno_update() {
+        global $wpdb;
         check_ajax_referer( 'arwai_anno_nonce', 'nonce' );
 
         if ( ! is_user_logged_in() ) {
             wp_send_json_error( 'You must be logged in to update annotations.' );
         }
-
-        global $wpdb;
         $annoid = isset($_POST['annotationid']) ? sanitize_text_field($_POST['annotationid']) : '';
         $annotation_json = isset($_POST['annotation']) ? wp_unslash($_POST['annotation']) : '';
         if (empty($annoid) || empty($annotation_json)) { wp_send_json_error('Missing data.'); }
         $annotation = json_decode($annotation_json, true);
         if (json_last_error() !== JSON_ERROR_NONE) { wp_send_json_error('Invalid JSON.'); }
-        $image_url = $annotation['target']['source'] ?? '';
-        $attachment_id = attachment_url_to_postid($image_url);
+        $attachment_id = isset($_POST['attachment_id']) ? intval($_POST['attachment_id']) : 0;
+        if (empty($attachment_id)) {
+            $image_url = $annotation['target']['source'] ?? '';
+            if (!empty($image_url)) {
+                $attachment_id = attachment_url_to_postid($image_url);
+            }
+        }
         if (empty($attachment_id)) { wp_send_json_error('Could not find attachment ID.'); }
 
         $this->_sync_annotation_tags_to_attachment($attachment_id, $annotation['body']);
@@ -1215,7 +1233,7 @@ public function load_public_scripts() {
             array('%s', '%d')
         );
 
-        if ($updated) {
+        if ( false !== $updated ) {
             $wpdb->insert( $this->history_table_name, array(
                 'annotation_id_from_annotorious' => $annoid,
                 'attachment_id' => $attachment_id,
