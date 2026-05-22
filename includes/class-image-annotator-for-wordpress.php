@@ -1285,6 +1285,33 @@ public function load_public_scripts() {
         wp_send_json_success(['history' => $history_records]);
         wp_die();
     }
+
+    /**
+     * Extracts a specific JSON value from an annotation's data.
+     *
+     * @param string $annotation_id_from_annotorious The Annotorious ID of the annotation.
+     * @param string $json_path The JSON path to extract (e.g., '$.body[0].value').
+     * @return string|null The extracted string value unquoted, or null if it doesn't exist.
+     */
+    public static function get_annotation_json_value( $annotation_id_from_annotorious, $json_path ) {
+        global $wpdb;
+        $table_name = $wpdb->prefix . 'annotorious_data';
+
+        // To maintain strict compatibility with MariaDB 10.3+ (as the ->> operator was introduced in MariaDB 10.5.0),
+        // we use JSON_UNQUOTE(JSON_EXTRACT(...)), which is functionally identical.
+
+        $query = $wpdb->prepare(
+            "SELECT JSON_UNQUOTE(JSON_EXTRACT(annotation_data, %s)) as extracted_val
+             FROM {$table_name}
+             WHERE annotation_id_from_annotorious = %s",
+            $json_path,
+            $annotation_id_from_annotorious
+        );
+
+        $result = $wpdb->get_var( $query );
+
+        return $result !== null ? $result : null;
+    }
 }
 
 /**
