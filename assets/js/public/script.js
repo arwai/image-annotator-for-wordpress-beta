@@ -388,7 +388,7 @@ jQuery(document).ready(function($) {
      * Shared helper function to handle CRUD events (create, update, delete)
      * and keep the window.arwaiAnnotationCache in sync.
      */
-    function handleAnnotationCRUD(action, annotation, annoInstance) {
+    function handleAnnotationCRUD(action, annotation, annoInstance, previous = null) {
         let attachmentId;
         let iiifSourceUrl;
         if (annoInstance === osdAnno) {
@@ -400,17 +400,17 @@ jQuery(document).ready(function($) {
             const currentImageData = images.find(img => img.post_id === attachmentId);
             iiifSourceUrl = currentImageData ? currentImageData.iiif_source_url : '';
         }
-
+    
         if (!attachmentId) return;
-
+    
         const syncCache = () => {
             window.arwaiAnnotationCache[attachmentId] = annoInstance.getAnnotations();
         };
-
+    
         if (action === 'create' || action === 'update') {
             const isOsd = (annoInstance === osdAnno);
             const ajaxAction = (action === 'create') ? 'arwai_anno_add' : 'arwai_anno_update';
-
+    
             const sendRequest = (annot) => {
                 const postData = {
                     action: ajaxAction,
@@ -420,17 +420,28 @@ jQuery(document).ready(function($) {
                     iiif_source_url: iiifSourceUrl,
                     post_id: post_id
                 };
-                if (action === 'update') postData.annotationid = annot.id;
-
+                
+                // Pass the previous ID if available to ensure accurate DB targeting
+                if (action === 'update') {
+                    postData.annotationid = previous ? previous.id : annot.id;
+                }
+    
                 $.post(ajax_url, postData).done(response => {
                     if (action === 'create' && response.success && response.data.annotation) {
+                        // Temporarily silence events to prevent infinite loops during replacement
+                        annoInstance.off('deleteAnnotation');
+                        annoInstance.off('createAnnotation');
+                        
                         annoInstance.removeAnnotation(annot);
                         annoInstance.addAnnotation(response.data.annotation);
+                        
+                        // Reattach events
+                        attachEventHandlers(annoInstance);
                     }
                     syncCache();
                 });
             };
-
+    
             if (isOsd) {
                 const imageUrl = images[osdViewer.currentPage()].fullUrl;
                 const imageEl = new Image();
@@ -453,6 +464,7 @@ jQuery(document).ready(function($) {
                 action: 'arwai_anno_delete',
                 annotation: JSON.stringify(annotation),
                 annotationid: annotation.id,
+                attachment_id: attachmentId, // FIXED: Now sending the attachment ID
                 nonce: anno_options.annoNonce
             }).done(() => {
                 syncCache();
@@ -461,14 +473,22 @@ jQuery(document).ready(function($) {
     }
 
     function attachEventHandlers(annoInstance) {
+        // Prevent duplicate event bindings
+        annoInstance.off('createAnnotation');
+        annoInstance.off('updateAnnotation');
+        annoInstance.off('deleteAnnotation');
+        annoInstance.off('selectAnnotation');
+        annoInstance.off('cancelSelected');
+    
         annoInstance.on('createAnnotation', function(annotation) {
             handleAnnotationCRUD('create', annotation, annoInstance);
         });
-
-        annoInstance.on('updateAnnotation', function(annotation) {
-            handleAnnotationCRUD('update', annotation, annoInstance);
+    
+        // FIXED: Accept the 'previous' argument provided by Annotorious
+        annoInstance.on('updateAnnotation', function(annotation, previous) {
+            handleAnnotationCRUD('update', annotation, annoInstance, previous);
         });
-
+    
         annoInstance.on('deleteAnnotation', function(annotation) {
             handleAnnotationCRUD('delete', annotation, annoInstance);
         });
@@ -481,10 +501,7 @@ jQuery(document).ready(function($) {
             highlightedAnnotation = element;
             updateSingleAnnotationDisplay(annotation);
         });
-
-
-
-        
+    
         annoInstance.on('cancelSelected', function() {
             if (highlightedAnnotation) {
                 highlightedAnnotation.classList.remove('is-highlighted');
