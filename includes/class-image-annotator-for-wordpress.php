@@ -10,7 +10,6 @@
 class Image_Annotator_for_WordPress {
     public $filter_called;
     private $table_name;
-    private $history_table_name;
 
     // Meta and Option Keys
     const META_POST_DISPLAY_MODE = '_arwai_image_annotator_post_display_mode';
@@ -40,9 +39,9 @@ class Image_Annotator_for_WordPress {
         global $wpdb;
 
         $this->table_name = $wpdb->prefix . 'annotorious_data';
-        $this->history_table_name = $wpdb->prefix . 'annotorious_history';
 
         add_action( 'wp_enqueue_scripts', array( $this, 'load_public_scripts' ) );
+        add_filter( 'pre_get_comments', array( $this, 'exclude_annotation_logs_from_comments' ) );
         add_action( 'admin_enqueue_scripts', array( $this, 'load_admin_scripts' ) );
         add_action( 'admin_init', array( $this, 'settings_init' ) );
         add_action( 'admin_menu', array( $this, 'add_settings_page' ) );
@@ -986,6 +985,51 @@ public function load_public_scripts() {
         }
     }
 
+    /**
+     * Logs an annotation action (create, update, delete) to the native WordPress comment system.
+     *
+     * @param int    $attachment_id  The ID of the media attachment post.
+     * @param string $action_type    The type of action ('create', 'update', 'delete').
+     * @param string $annotation_data The JSON string of the annotation data.
+     * @param string $annotation_id  The Annotorious string ID.
+     * @param int    $post_id        The post ID context, if any.
+     */
+    private function log_annotation_action( $attachment_id, $action_type, $annotation_data, $annotation_id, $post_id = 0 ) {
+        $user_id = get_current_user_id();
+        $user = wp_get_current_user();
+        $user_name = $user->exists() ? $user->display_name : 'Unknown User';
+
+        $action_verb = 'updated';
+        if ( $action_type === 'create' ) {
+            $action_verb = 'created';
+        } elseif ( $action_type === 'delete' ) {
+            $action_verb = 'deleted';
+        }
+
+        $comment_content = sprintf( 'Annotation %s by %s', $action_verb, $user_name );
+
+        $commentdata = array(
+            'comment_post_ID'      => $attachment_id,
+            'comment_author'       => $user_name,
+            'comment_author_email' => $user->exists() ? $user->user_email : '',
+            'comment_content'      => $comment_content,
+            'comment_type'         => 'image_annotation_log',
+            'user_id'              => $user_id,
+            'comment_approved'     => 1, // Automatically approve
+        );
+
+        $comment_id = wp_insert_comment( $commentdata );
+
+        if ( $comment_id && ! is_wp_error( $comment_id ) ) {
+            add_comment_meta( $comment_id, '_arwai_annotation_snapshot', $annotation_data );
+            add_comment_meta( $comment_id, '_arwai_annotation_id', $annotation_id );
+            add_comment_meta( $comment_id, '_arwai_action_type', $action_type );
+            if ( $post_id ) {
+                add_comment_meta( $comment_id, '_arwai_post_id', $post_id );
+            }
+        }
+    }
+
     // --- AJAX Functions ---
 
     function arwai_add_taxonomy_term() {
@@ -1125,15 +1169,13 @@ public function load_public_scripts() {
                 ['%d']
             );
 
-            $wpdb->insert( $this->history_table_name, array(
-                'annotation_id_from_annotorious' => $annotation_id_from_annotorious,
-                'attachment_id' => $attachment_id,
-                'post_id' => $parent_post_id,
-                'iiif_source_url' => $iiif_source_url,
-                'action_type' => 'created',
-                'annotation_data_snapshot' => wp_json_encode($annotation),
-                'user_id' => get_current_user_id()
-            ), array('%s', '%d', '%d', '%s', '%s', '%s', '%d') );
+            $this->log_annotation_action(
+                $attachment_id,
+                'create',
+                wp_json_encode($annotation),
+                $annotation_id_from_annotorious,
+                $parent_post_id
+            );
 
             wp_send_json_success(['annotation' => $annotation]);
 
@@ -1168,7 +1210,15 @@ public function load_public_scripts() {
 
         $existing = $wpdb->get_row( $wpdb->prepare( "SELECT annotation_data FROM {$this->table_name} WHERE annotation_id_from_annotorious = %s AND attachment_id = %d", $annoid, $attachment_id ), ARRAY_A );
         if ($existing) {
-            $wpdb->insert( $this->history_table_name, array('annotation_id_from_annotorious' => $annoid, 'attachment_id' => $attachment_id, 'action_type' => 'deleted', 'annotation_data_snapshot' => $existing['annotation_data'], 'user_id' => get_current_user_id()), array('%s', '%d', '%s', '%s', '%d') );
+            // Check if post_id is available in existing record, or default to 0
+            $parent_post_id = isset($_POST['post_id']) ? intval($_POST['post_id']) : 0;
+            $this->log_annotation_action(
+                $attachment_id,
+                'delete',
+                $existing['annotation_data'],
+                $annoid,
+                $parent_post_id
+            );
         }
 
         $deleted = $wpdb->delete( $this->table_name, array('annotation_id_from_annotorious' => $annoid, 'attachment_id' => $attachment_id), array('%s', '%d') );
@@ -1234,15 +1284,13 @@ public function load_public_scripts() {
         );
 
         if ( false !== $updated ) {
-            $wpdb->insert( $this->history_table_name, array(
-                'annotation_id_from_annotorious' => $annoid,
-                'attachment_id' => $attachment_id,
-                'post_id' => $parent_post_id,
-                'iiif_source_url' => $iiif_source_url,
-                'action_type' => 'updated',
-                'annotation_data_snapshot' => wp_json_encode($annotation),
-                'user_id' => get_current_user_id()
-            ), array('%s', '%d', '%d', '%s', '%s', '%s', '%d') );
+            $this->log_annotation_action(
+                $attachment_id,
+                'update',
+                wp_json_encode($annotation),
+                $annoid,
+                $parent_post_id
+            );
             wp_send_json_success();
         } else {
             wp_send_json_error();
@@ -1253,37 +1301,78 @@ public function load_public_scripts() {
 
 
     function get_annotorious_history() {
-        global $wpdb;
         $attachment_id = isset($_GET['attachment_id']) ? intval($_GET['attachment_id']) : 0;
         $annotation_id = isset($_GET['annotation_id']) ? sanitize_text_field($_GET['annotation_id']) : '';
         if (empty($attachment_id) && empty($annotation_id)) { wp_send_json_error('Missing ID.'); }
 
         header('Content-Type: application/json');
-        $query_params = [];
-        $where_clauses = [];
-        if ($attachment_id) { $where_clauses[] = 'attachment_id = %d'; $query_params[] = $attachment_id; }
-        if ($annotation_id) { $where_clauses[] = 'annotation_id_from_annotorious = %s'; $query_params[] = $annotation_id; }
-        $where_sql = implode(' AND ', $where_clauses);
 
-        $sql = "SELECT * FROM {$this->history_table_name} WHERE {$where_sql} ORDER BY action_timestamp DESC";
-        $results = $wpdb->get_results( $wpdb->prepare( $sql, $query_params ), ARRAY_A );
+        $args = [
+            'comment_type'        => 'image_annotation_log',
+            'arwai_bypass_filter' => true, // bypass global pre_get_comments hiding
+            'orderby'             => 'comment_date',
+            'order'               => 'DESC',
+        ];
 
-        $history_records = array_map(function($row) {
-            $user_info = get_userdata( $row['user_id'] );
-            return [
-                'id' => (int) $row['id'],
-                'annotationId' => $row['annotation_id_from_annotorious'],
-                'attachmentId' => (int) $row['attachment_id'],
-                'actionType' => $row['action_type'],
-                'annotationData' => json_decode($row['annotation_data_snapshot']),
-                'userId' => (int) $row['user_id'],
-                'userName' => $user_info ? $user_info->display_name : 'Guest',
-                'timestamp' => $row['action_timestamp'],
+        if ( $attachment_id ) {
+            $args['post_id'] = $attachment_id;
+        }
+
+        if ( ! empty( $annotation_id ) ) {
+            $args['meta_query'] = [
+                [
+                    'key'     => '_arwai_annotation_id',
+                    'value'   => $annotation_id,
+                    'compare' => '=',
+                ]
             ];
-        }, $results);
+        }
+
+        $comments = get_comments( $args );
+
+        $history_records = array_map(function($comment) {
+            $annotation_id_meta = get_comment_meta( $comment->comment_ID, '_arwai_annotation_id', true );
+            $action_type_meta   = get_comment_meta( $comment->comment_ID, '_arwai_action_type', true );
+            $snapshot_meta      = get_comment_meta( $comment->comment_ID, '_arwai_annotation_snapshot', true );
+
+            return [
+                'id'             => (int) $comment->comment_ID,
+                'annotationId'   => $annotation_id_meta,
+                'attachmentId'   => (int) $comment->comment_post_ID,
+                'actionType'     => $action_type_meta,
+                'annotationData' => json_decode($snapshot_meta),
+                'userId'         => (int) $comment->user_id,
+                'userName'       => $comment->comment_author,
+                'timestamp'      => $comment->comment_date,
+            ];
+        }, $comments);
 
         wp_send_json_success(['history' => $history_records]);
         wp_die();
+    }
+
+    /**
+     * Globally hides image_annotation_log comments unless explicitly requested.
+     */
+    public function exclude_annotation_logs_from_comments( $query ) {
+        // If our custom flag 'arwai_bypass_filter' is set, we skip modification.
+        if ( isset( $query->query_vars['arwai_bypass_filter'] ) && $query->query_vars['arwai_bypass_filter'] ) {
+            return;
+        }
+
+        // Get current excluded comment types, if any.
+        $type__not_in = isset( $query->query_vars['type__not_in'] ) ? $query->query_vars['type__not_in'] : array();
+
+        // Ensure it's an array.
+        if ( ! is_array( $type__not_in ) ) {
+            $type__not_in = array( $type__not_in );
+        }
+
+        // Add our custom type to the exclusions.
+        if ( ! in_array( 'image_annotation_log', $type__not_in, true ) ) {
+            $type__not_in[] = 'image_annotation_log';
+            $query->query_vars['type__not_in'] = $type__not_in;
+        }
     }
 
     /**
