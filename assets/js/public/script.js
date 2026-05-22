@@ -721,7 +721,9 @@ jQuery(document).ready(function($) {
     function updateView(index) {
         if (singleAnnotationContainer.length) singleAnnotationContainer.hide();
         if (index < 0 || index >= images.length) return;
-        slickSlider.slick('slickGoTo', index); 
+        if (images.length > 1) {
+            slickSlider.slick('slickGoTo', index);
+        }
     }
 
     function updateArrowVisibility() {
