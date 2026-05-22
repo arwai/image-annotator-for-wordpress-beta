@@ -71,6 +71,52 @@ jQuery(document).ready(function($) {
             mediaFrame.open();
         });
 
+        $metaboxContainer.on('click', '#arwai-iiif-upload-button', function(e) {
+            e.preventDefault();
+            var $button = $(this);
+            var $input = $('#iiif_image_url');
+            var $status = $('#arwai-iiif-status');
+            var iiifUrl = $input.val().trim();
+            var postId = $('#post_ID').val();
+
+            if (!iiifUrl) {
+                alert('Please enter a IIIF URL.');
+                return;
+            }
+
+            $button.prop('disabled', true).text('Uploading...');
+            $status.show().html('<span class="spinner is-active" style="float:none; margin:0 5px 0 0;"></span> Sideloading image...');
+
+            $.post(Arwai_Admin_Data.ajax_url, {
+                action: 'arwai_sideload_iiif',
+                nonce: Arwai_Admin_Data.sideload_nonce,
+                iiif_url: iiifUrl,
+                post_id: postId
+            }).done(function(response) {
+                if (response.success) {
+                    var id = response.data.attach_id;
+                    var thumbUrl = response.data.thumb_url;
+
+                    var currentIds = $hiddenField.val() ? JSON.parse($hiddenField.val()) : [];
+                    if (!Array.isArray(currentIds)) currentIds = [];
+                    currentIds.push(id);
+
+                    $imageList.append(createImageLi(id, thumbUrl));
+                    updateHiddenField(currentIds);
+
+                    $input.val('');
+                    $status.html('<span style="color: green;">✔ Image sideloaded successfully!</span>');
+                } else {
+                    $status.html('<span style="color: red;">✘ ' + response.data + '</span>');
+                }
+            }).fail(function() {
+                $status.html('<span style="color: red;">✘ An unexpected error occurred.</span>');
+            }).always(function() {
+                $button.prop('disabled', false).text('Upload');
+                setTimeout(function() { $status.fadeOut(); }, 5000);
+            });
+        });
+
         $metaboxContainer.on('click', '.arwai-multi-image-remove', function(e) {
             e.preventDefault();
             var $item = $(this).closest('li');

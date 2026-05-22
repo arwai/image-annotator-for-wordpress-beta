@@ -52,12 +52,15 @@ function arwai_image_annotator_activate() {
         id BIGINT(20) UNSIGNED NOT NULL AUTO_INCREMENT,
         annotation_id_from_annotorious VARCHAR(255) NOT NULL,
         attachment_id BIGINT(20) UNSIGNED NOT NULL,
+        post_id BIGINT(20) UNSIGNED DEFAULT NULL,
+        iiif_source_url VARCHAR(512) DEFAULT NULL,
         annotation_data LONGTEXT NOT NULL,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
         PRIMARY KEY (id),
         UNIQUE KEY annotorious_id (annotation_id_from_annotorious),
-        KEY attachment_id (attachment_id)
+        KEY attachment_id (attachment_id),
+        KEY post_id (post_id)
     ) $charset_collate;";
 
     // SQL for annotorious_history table
@@ -65,6 +68,8 @@ function arwai_image_annotator_activate() {
         id BIGINT(20) UNSIGNED NOT NULL AUTO_INCREMENT,
         annotation_id_from_annotorious VARCHAR(255) NOT NULL,
         attachment_id BIGINT(20) UNSIGNED NOT NULL,
+        post_id BIGINT(20) UNSIGNED DEFAULT NULL,
+        iiif_source_url VARCHAR(512) DEFAULT NULL,
         action_type VARCHAR(50) NOT NULL,
         annotation_data_snapshot LONGTEXT NOT NULL,
         user_id BIGINT(20) UNSIGNED,
@@ -72,6 +77,7 @@ function arwai_image_annotator_activate() {
         PRIMARY KEY (id),
         KEY annotorious_id_idx (annotation_id_from_annotorious),
         KEY attachment_id_idx (attachment_id),
+        KEY post_id_idx (post_id),
         KEY user_id_idx (user_id)
     ) $charset_collate;";
 
