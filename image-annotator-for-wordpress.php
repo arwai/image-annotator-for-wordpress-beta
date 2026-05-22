@@ -78,6 +78,11 @@ function arwai_image_annotator_activate() {
     require_once( ABSPATH . 'wp-admin/includes/upgrade.php' );
     dbDelta( $sql_data );
     dbDelta( $sql_history );
+
+    // Workaround for dbDelta JSON quirk: manually convert LONGTEXT to JSON if supported
+    // MariaDB 10.3+ and MySQL 5.7+ treat JSON as an alias for LONGTEXT but enforce validation
+    $wpdb->query( "ALTER TABLE {$table_name_data} MODIFY annotation_data JSON NOT NULL;" );
+    $wpdb->query( "ALTER TABLE {$table_name_history} MODIFY annotation_data_snapshot JSON NOT NULL;" );
 }
 register_activation_hook( __FILE__, 'arwai_image_annotator_activate' );
 

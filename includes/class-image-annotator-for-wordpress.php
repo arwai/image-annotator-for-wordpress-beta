@@ -1043,6 +1043,25 @@ public function load_public_scripts() {
 
 
 
+    /**
+     * Helper function to extract a specific JSON value from annotation_data.
+     *
+     * @param string $annotation_id_from_annotorious The annotation ID.
+     * @param string $json_path The JSON path to extract (e.g., '$.body[0].value').
+     * @return string|null The unquoted JSON value, or null if not found.
+     */
+    public function get_annotation_json_value($annotation_id_from_annotorious, $json_path) {
+        global $wpdb;
+
+        $sql = "SELECT JSON_UNQUOTE(JSON_EXTRACT(annotation_data, %s))
+                FROM {$this->table_name}
+                WHERE annotation_id_from_annotorious = %s";
+
+        $value = $wpdb->get_var($wpdb->prepare($sql, $json_path, $annotation_id_from_annotorious));
+
+        return $value !== null ? $value : null;
+    }
+
     function get_annotorious_history() {
         global $wpdb;
         $attachment_id = isset($_GET['attachment_id']) ? intval($_GET['attachment_id']) : 0;
