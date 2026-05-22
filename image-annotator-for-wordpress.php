@@ -84,6 +84,34 @@ function arwai_image_annotator_activate() {
     require_once( ABSPATH . 'wp-admin/includes/upgrade.php' );
     dbDelta( $sql_data );
     dbDelta( $sql_history );
+
+    // Workaround for dbDelta's inability to handle JSON columns correctly.
+    // Ensure data is valid JSON before attempting to ALTER the column.
+
+    // Check if annotation_data in $table_name_data needs updating
+    $column_data_info = $wpdb->get_row( "SHOW COLUMNS FROM {$table_name_data} LIKE 'annotation_data'" );
+    // MariaDB stores JSON as LONGTEXT. To avoid infinite alter loops on MariaDB, we also check if the column has a JSON_VALID check constraint, or we can check SHOW CREATE TABLE.
+    $create_table_data = $wpdb->get_row( "SHOW CREATE TABLE {$table_name_data}", ARRAY_N );
+    $has_json_check_data = ( $create_table_data && stripos( $create_table_data[1], 'json_valid(`annotation_data`)' ) !== false );
+
+    if ( $column_data_info && strtolower( $column_data_info->Type ) !== 'json' && ! $has_json_check_data ) {
+        // Fix empty strings to be valid JSON
+        $wpdb->query( "UPDATE {$table_name_data} SET annotation_data = '{}' WHERE annotation_data = ''" );
+        // Alter column to JSON
+        $wpdb->query( "ALTER TABLE {$table_name_data} MODIFY COLUMN annotation_data JSON" );
+    }
+
+    // Check if annotation_data_snapshot in $table_name_history needs updating
+    $column_history_info = $wpdb->get_row( "SHOW COLUMNS FROM {$table_name_history} LIKE 'annotation_data_snapshot'" );
+    $create_table_history = $wpdb->get_row( "SHOW CREATE TABLE {$table_name_history}", ARRAY_N );
+    $has_json_check_history = ( $create_table_history && stripos( $create_table_history[1], 'json_valid(`annotation_data_snapshot`)' ) !== false );
+
+    if ( $column_history_info && strtolower( $column_history_info->Type ) !== 'json' && ! $has_json_check_history ) {
+        // Fix empty strings to be valid JSON
+        $wpdb->query( "UPDATE {$table_name_history} SET annotation_data_snapshot = '{}' WHERE annotation_data_snapshot = ''" );
+        // Alter column to JSON
+        $wpdb->query( "ALTER TABLE {$table_name_history} MODIFY COLUMN annotation_data_snapshot JSON" );
+    }
 }
 register_activation_hook( __FILE__, 'arwai_image_annotator_activate' );
 
