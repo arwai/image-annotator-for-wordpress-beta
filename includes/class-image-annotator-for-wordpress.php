@@ -441,10 +441,6 @@ public function load_public_scripts() {
 
                                 <div id='arwai-simple-viewer-main'>
 
-                                <div id='arwai-single-annotation-container'>
-                                    <ul id='arwai-single-annotation'></ul>
-                                </div>
-                                                                
                                     <div class='arwai-slick-slider'>
                                         " . $slides_html . "
                                     </div>
@@ -526,6 +522,10 @@ public function load_public_scripts() {
                                 
                             </div>
 
+                        </div>
+
+                        <div id='arwai-single-annotation-container'>
+                            <ul id='arwai-single-annotation'></ul>
                         </div>
 
                         <div id='arwai-osd-modal' style='display:none;'>
