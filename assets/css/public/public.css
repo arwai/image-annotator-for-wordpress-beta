@@ -490,7 +490,7 @@ ul#arwai-single-annotation li div.arwai-anno-single-body ul li p{
 }
 
 #arwai-close-single-annotation.arwai-btn {
-    float: right;
+    transform: translateY(-2rem);
     background: none;
 	color: inherit;
 	border: 1px solid transparent;
