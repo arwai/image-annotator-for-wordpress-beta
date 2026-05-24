@@ -441,10 +441,6 @@ public function load_public_scripts() {
 
                                 <div id='arwai-simple-viewer-main'>
 
-                                <div id='arwai-single-annotation-container'>
-                                    <ul id='arwai-single-annotation'></ul>
-                                </div>
-                                                                
                                     <div class='arwai-slick-slider'>
                                         " . $slides_html . "
                                     </div>
@@ -463,6 +459,10 @@ public function load_public_scripts() {
                                             " . $thumbnails_html . "
                                         </div>
                                     <button class='arwai-simple-strip-scroll-right'><span data-feather='chevron-right'></span></button>
+                                </div>
+
+                                <div id='arwai-single-annotation-container'>
+                                    <ul id='arwai-single-annotation'></ul>
                                 </div>
 
                             </div>
