@@ -1059,3 +1059,38 @@ button.arwai-anno-single-tag {
     align-self: flex-end;
     padding: 0.5rem;
 }
+/* History Sidebar Feed */
+.arwai-history-feed-item {
+    padding: 10px 0;
+    border-bottom: 1px solid #eee;
+    font-size: 12px;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+.arwai-history-feed-item:hover {
+    background-color: #f0f0f0;
+}
+.arwai-history-feed-item:last-child {
+    border-bottom: none;
+}
+.arwai-history-avatar {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background-color: #ddd;
+    color: #333;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+    margin-right: 8px;
+    vertical-align: middle;
+}
+.arwai-history-meta {
+    color: #888;
+    font-size: 10px;
+    margin-top: 4px;
+}
+.arwai-action-create .arwai-history-avatar { background-color: #d4edda; color: #155724; }
+.arwai-action-update .arwai-history-avatar { background-color: #cce5ff; color: #004085; }
+.arwai-action-delete .arwai-history-avatar { background-color: #f8d7da; color: #721c24; }

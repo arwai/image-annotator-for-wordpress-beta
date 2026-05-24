@@ -159,6 +159,12 @@ jQuery(document).ready(function($) {
     const osdCloseButton = $('#arwai-osd-close');
     const osdToggleButton = $('#arwai-toggle-annotations-osd'); 
 
+    // History elements
+    const historyButton = $('#arwai-history');
+    const historySidebar = $('#arwai-history-sidebar');
+    const historyCloseBtn = $('#arwai-close-history');
+    const historyFeedContent = $('#arwai-history-feed-content');
+
 
     // --- SELECTORS FOR THE SINGLE ANNOTATION DISPLAY ---
     const singleAnnotationContainer = $('#arwai-single-annotation-container');
@@ -171,8 +177,124 @@ jQuery(document).ready(function($) {
     let osdViewer = null;  // OpenSeadragon viewer instance
     let osdAnno = null;    // Annotorious instance for OSD
     let annotationsVisible = false;
+    let historyVisible = false;
     let highlightedAnnotation = null; 
     let initRafId = null;
+
+
+    // --- CUSTOM HISTORY WIDGET FOR ANNOTORIOUS ---
+    const HistoryWidget = function(args) {
+        const annotationId = args.annotation ? args.annotation.id : null;
+        const container = document.createElement('div');
+        container.className = 'r6o-widget arwai-history-widget';
+
+        if (!annotationId) {
+            return container; // Do not show widget on new, unsaved annotations
+        }
+
+        const button = document.createElement('button');
+        button.className = 'r6o-btn';
+        button.innerHTML = '<span data-feather="clock" style="width:14px;height:14px;margin-right:5px;vertical-align:middle;"></span>View History';
+        button.style.width = '100%';
+        button.style.textAlign = 'left';
+        button.style.background = '#f9f9f9';
+        button.style.borderTop = '1px solid #e5e5e5';
+        button.style.padding = '8px 12px';
+        button.style.cursor = 'pointer';
+
+        const historyContainer = document.createElement('div');
+        historyContainer.style.display = 'none';
+        historyContainer.style.padding = '10px';
+        historyContainer.style.background = '#fafafa';
+        historyContainer.style.borderTop = '1px solid #e5e5e5';
+        historyContainer.style.maxHeight = '150px';
+        historyContainer.style.overflowY = 'auto';
+        historyContainer.style.fontSize = '12px';
+
+        button.addEventListener('click', function(e) {
+            e.preventDefault();
+            if (historyContainer.style.display === 'block') {
+                historyContainer.style.display = 'none';
+                return;
+            }
+
+            historyContainer.style.display = 'block';
+            historyContainer.innerHTML = '<div style="text-align:center;">Loading...</div>';
+
+            $.ajax({
+                url: ajax_url,
+                method: 'GET',
+                data: {
+                    action: 'arwai_get_annotorious_history',
+                    annotation_id: annotationId
+                },
+                success: function(response) {
+                    if (response.success && response.data.history && response.data.history.length > 0) {
+                        let html = '';
+                        // Reverse array to loop from oldest to newest to compute diffs
+                        const historyRev = [...response.data.history].reverse();
+
+                        for (let i = 0; i < historyRev.length; i++) {
+                            const item = historyRev[i];
+                            const dateStr = new Date(item.timestamp).toLocaleString();
+                            let diffText = '';
+
+                            if (item.actionType === 'create') {
+                                diffText = 'Created annotation.';
+                            } else if (item.actionType === 'update') {
+                                const prevItem = historyRev[i - 1];
+                                if (prevItem) {
+                                    // Basic diff: check bodies
+                                    const currBodies = item.annotationData.body || [];
+                                    const prevBodies = prevItem.annotationData.body || [];
+
+                                    const addedTags = currBodies.filter(b => b.purpose === 'tagging' && !prevBodies.some(pb => pb.purpose === 'tagging' && pb.value === b.value));
+                                    const removedTags = prevBodies.filter(pb => pb.purpose === 'tagging' && !currBodies.some(b => b.purpose === 'tagging' && b.value === pb.value));
+
+                                    if (addedTags.length > 0) diffText += `Added tag(s): ${addedTags.map(t => t.value).join(', ')}<br>`;
+                                    if (removedTags.length > 0) diffText += `Removed tag(s): ${removedTags.map(t => t.value).join(', ')}<br>`;
+
+                                    // Check comments
+                                    const currComments = currBodies.filter(b => b.purpose === 'commenting' || b.purpose === 'replying').map(b=>b.value).join(' ');
+                                    const prevComments = prevBodies.filter(pb => pb.purpose === 'commenting' || pb.purpose === 'replying').map(pb=>pb.value).join(' ');
+
+                                    if (currComments !== prevComments) {
+                                        diffText += `Updated text content.<br>`;
+                                    }
+
+                                    if (!diffText) diffText = 'Updated geometry/position.';
+                                } else {
+                                    diffText = 'Updated annotation.';
+                                }
+                            }
+
+                            html = `
+                                <div style="margin-bottom: 8px; border-bottom: 1px solid #eee; padding-bottom: 5px;">
+                                    <strong style="color:#0073aa;">${item.userName}</strong>
+                                    <div style="color:#888; font-size:10px;">${dateStr}</div>
+                                    <div style="margin-top:2px;">${diffText}</div>
+                                </div>
+                            ` + html; // prepend to show newest at top
+                        }
+                        historyContainer.innerHTML = html;
+                    } else {
+                        historyContainer.innerHTML = '<div style="color:#888;">No history found.</div>';
+                    }
+                },
+                error: function() {
+                    historyContainer.innerHTML = '<div style="color:red;">Error loading history.</div>';
+                }
+            });
+        });
+
+        container.appendChild(button);
+        container.appendChild(historyContainer);
+
+        // Render feather icon in widget
+        setTimeout(() => { if (typeof feather !== 'undefined') feather.replace(); }, 10);
+
+        return container;
+    }
 
 
     // --- 3. SHARED & HELPER FUNCTIONS ---
@@ -388,7 +510,7 @@ jQuery(document).ready(function($) {
      * Shared helper function to handle CRUD events (create, update, delete)
      * and keep the window.arwaiAnnotationCache in sync.
      */
-    function handleAnnotationCRUD(action, annotation, annoInstance, previous = null) {
+    function handleAnnotationCRUD(action, annotation, annoInstance) {
         let attachmentId;
         let iiifSourceUrl;
         if (annoInstance === osdAnno) {
@@ -400,17 +522,17 @@ jQuery(document).ready(function($) {
             const currentImageData = images.find(img => img.post_id === attachmentId);
             iiifSourceUrl = currentImageData ? currentImageData.iiif_source_url : '';
         }
-    
+
         if (!attachmentId) return;
-    
+
         const syncCache = () => {
             window.arwaiAnnotationCache[attachmentId] = annoInstance.getAnnotations();
         };
-    
+
         if (action === 'create' || action === 'update') {
             const isOsd = (annoInstance === osdAnno);
             const ajaxAction = (action === 'create') ? 'arwai_anno_add' : 'arwai_anno_update';
-    
+
             const sendRequest = (annot) => {
                 const postData = {
                     action: ajaxAction,
@@ -420,28 +542,17 @@ jQuery(document).ready(function($) {
                     iiif_source_url: iiifSourceUrl,
                     post_id: post_id
                 };
-                
-                // Pass the previous ID if available to ensure accurate DB targeting
-                if (action === 'update') {
-                    postData.annotationid = previous ? previous.id : annot.id;
-                }
-    
+                if (action === 'update') postData.annotationid = annot.id;
+
                 $.post(ajax_url, postData).done(response => {
                     if (action === 'create' && response.success && response.data.annotation) {
-                        // Temporarily silence events to prevent infinite loops during replacement
-                        annoInstance.off('deleteAnnotation');
-                        annoInstance.off('createAnnotation');
-                        
                         annoInstance.removeAnnotation(annot);
                         annoInstance.addAnnotation(response.data.annotation);
-                        
-                        // Reattach events
-                        attachEventHandlers(annoInstance);
                     }
                     syncCache();
                 });
             };
-    
+
             if (isOsd) {
                 const imageUrl = images[osdViewer.currentPage()].fullUrl;
                 const imageEl = new Image();
@@ -464,7 +575,6 @@ jQuery(document).ready(function($) {
                 action: 'arwai_anno_delete',
                 annotation: JSON.stringify(annotation),
                 annotationid: annotation.id,
-                attachment_id: attachmentId, // FIXED: Now sending the attachment ID
                 nonce: anno_options.annoNonce
             }).done(() => {
                 syncCache();
@@ -473,22 +583,14 @@ jQuery(document).ready(function($) {
     }
 
     function attachEventHandlers(annoInstance) {
-        // Prevent duplicate event bindings
-        annoInstance.off('createAnnotation');
-        annoInstance.off('updateAnnotation');
-        annoInstance.off('deleteAnnotation');
-        annoInstance.off('selectAnnotation');
-        annoInstance.off('cancelSelected');
-    
         annoInstance.on('createAnnotation', function(annotation) {
             handleAnnotationCRUD('create', annotation, annoInstance);
         });
-    
-        // FIXED: Accept the 'previous' argument provided by Annotorious
-        annoInstance.on('updateAnnotation', function(annotation, previous) {
-            handleAnnotationCRUD('update', annotation, annoInstance, previous);
+
+        annoInstance.on('updateAnnotation', function(annotation) {
+            handleAnnotationCRUD('update', annotation, annoInstance);
         });
-    
+
         annoInstance.on('deleteAnnotation', function(annotation) {
             handleAnnotationCRUD('delete', annotation, annoInstance);
         });
@@ -501,7 +603,10 @@ jQuery(document).ready(function($) {
             highlightedAnnotation = element;
             updateSingleAnnotationDisplay(annotation);
         });
-    
+
+
+
+
         annoInstance.on('cancelSelected', function() {
             if (highlightedAnnotation) {
                 highlightedAnnotation.classList.remove('is-highlighted');
@@ -680,7 +785,11 @@ jQuery(document).ready(function($) {
                 formatters: [arwaiIdFormatter, arwaiStyleFormatter],
                 readOnly: anno_options.readOnly || !anno_options.currentUser,
                 allowEmpty: anno_options.allowEmpty,
-                widgets: ['COMMENT', { widget: 'TAG', vocabulary: anno_options.tagVocabulary || [] }]
+                widgets: [
+                    'COMMENT',
+                    { widget: 'TAG', vocabulary: anno_options.tagVocabulary || [] },
+                    HistoryWidget
+                ]
             });
 
             if (anno_options.currentUser) {
@@ -872,6 +981,101 @@ jQuery(document).ready(function($) {
 
     launchOsdButton.on('click', launchOsdViewer);
     osdCloseButton.on('click', closeOsdViewer);
+
+    // --- History Sidebar Logic ---
+    historyButton.on('click', function() {
+        historyVisible = !historyVisible;
+        if (historyVisible) {
+            historySidebar.show();
+            fetchAndRenderHistory();
+        } else {
+            historySidebar.hide();
+        }
+    });
+
+    historyCloseBtn.on('click', function() {
+        historyVisible = false;
+        historySidebar.hide();
+    });
+
+    function fetchAndRenderHistory() {
+        historyFeedContent.html('<div style="text-align:center; padding: 20px;"><span data-feather="loader" style="animation: spin 1s infinite linear;"></span></div>');
+        if (typeof feather !== 'undefined') feather.replace();
+
+        const currentAttachmentId = images[currentIndex].post_id;
+        if (!currentAttachmentId) return;
+
+        $.ajax({
+            url: ajax_url,
+            method: 'GET',
+            data: {
+                action: 'arwai_get_annotorious_history',
+                attachment_id: currentAttachmentId
+            },
+            success: function(response) {
+                if (response.success && response.data.history) {
+                    renderHistoryFeed(response.data.history);
+                } else {
+                    historyFeedContent.html('<div style="text-align:center; color:#888; padding: 20px;">Failed to load history.</div>');
+                }
+            },
+            error: function() {
+                historyFeedContent.html('<div style="text-align:center; color:#888; padding: 20px;">Error connecting to server.</div>');
+            }
+        });
+    }
+
+    function renderHistoryFeed(historyData) {
+        if (!historyData || historyData.length === 0) {
+            historyFeedContent.html('<div style="text-align:center; color:#888; padding: 20px;">No activity found for this image.</div>');
+            return;
+        }
+
+        let html = '';
+        historyData.forEach(item => {
+            const avatarLetter = item.userName ? item.userName.charAt(0).toUpperCase() : '?';
+            const actionClass = 'arwai-action-' + item.actionType;
+            let actionText = 'updated an annotation.';
+            if (item.actionType === 'create') actionText = 'created an annotation.';
+            if (item.actionType === 'delete') actionText = 'deleted an annotation.';
+
+            const dateStr = new Date(item.timestamp).toLocaleString();
+
+            html += `
+                <div class="arwai-history-feed-item ${actionClass}" data-annotation-id="${item.annotationId}">
+                    <div style="display:flex;">
+                        <div class="arwai-history-avatar">${avatarLetter}</div>
+                        <div>
+                            <strong>${item.userName}</strong> ${actionText}
+                            <div class="arwai-history-meta">${dateStr}</div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        });
+
+        historyFeedContent.html(html);
+
+        // Bind click event to select annotation
+        historyFeedContent.find('.arwai-history-feed-item').on('click', function() {
+            const annoId = $(this).data('annotation-id');
+            const activeAnno = osdViewer ? osdAnno : simpleAnno;
+            if (activeAnno && annoId) {
+                // Ensure annotations are visible before selecting
+                if (!annotationsVisible) {
+                    handleAnnotationToggle();
+                }
+                activeAnno.selectAnnotation(annoId);
+            }
+        });
+    }
+
+    // Refresh history if sidebar is open and slide changes
+    slickSlider.on('afterChange', function(event, slick, newIndex) {
+        if (historyVisible) {
+            fetchAndRenderHistory();
+        }
+    });
 
     if (typeof feather !== 'undefined') {
         feather.replace();

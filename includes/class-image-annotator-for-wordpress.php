@@ -503,21 +503,11 @@ public function load_public_scripts() {
 
                             </div>
                                     
-<div class='arwai-simple-viewer-button-wrapper' style='display:none'>
-    <button id='arwai-history' class='arwai-simple-toggle' title='history'>
-        <span data-feather='triangle'></span>
+<div class='arwai-simple-viewer-button-wrapper'>
+    <button id='arwai-history' class='arwai-simple-toggle' title='Toggle History Timeline'>
+        <span data-feather='clock'></span>
     </button>
     <span>History</span>
-
-    <div id='info-popup-2' class='popup-container' style='display: none;'>
-        <div class='popup-content'>
-            <div>Coming soon...</div>
-            <div class='button-wrapper'>
-                <button id='close-info-popup-2' title='Close History Popup'> <span data-feather='x-circle'></span></button>
-            </div>       
-        </div>
-    </div>
-
 </div>
 
 
@@ -717,10 +707,82 @@ public function load_public_scripts() {
     /// METABOXES
     public function add_plugin_metaboxes() {
         $active_post_types = $this->get_active_post_types();
-        if (empty($active_post_types)) return;
 
-        add_meta_box('arwai-image-annotator-display-mode-metabox', __('Viewer Mode', 'arwai-image-annotator'), array( $this, 'render_display_mode_metabox' ), $active_post_types, 'side');
-        add_meta_box('arwai-multi-image-uploader-metabox', __('Image Collection (sortable)', 'arwai-image-annotator'), array( $this, 'render_multi_image_uploader_metabox' ), $active_post_types, 'normal', 'high');
+        // Add meta boxes to supported post types
+        if (!empty($active_post_types)) {
+            add_meta_box('arwai-image-annotator-display-mode-metabox', __('Viewer Mode', 'arwai-image-annotator'), array( $this, 'render_display_mode_metabox' ), $active_post_types, 'side');
+            add_meta_box('arwai-multi-image-uploader-metabox', __('Image Collection (sortable)', 'arwai-image-annotator'), array( $this, 'render_multi_image_uploader_metabox' ), $active_post_types, 'normal', 'high');
+        }
+
+        // Add history meta box to the attachment post type
+        add_meta_box('arwai-image-annotator-history-metabox', __('Annotation History Logs', 'arwai-image-annotator'), array( $this, 'render_history_metabox' ), 'attachment', 'normal', 'high');
+    }
+
+    public function render_history_metabox( $post ) {
+        $args = [
+            'post_id'             => $post->ID,
+            'comment_type'        => 'image_annotation_log',
+            'arwai_bypass_filter' => true,
+            'orderby'             => 'comment_date',
+            'order'               => 'DESC',
+        ];
+
+        $history_comments = get_comments( $args );
+
+        if ( empty( $history_comments ) ) {
+            echo '<p>' . __( 'No annotation history logs found for this image.', 'arwai-image-annotator' ) . '</p>';
+            return;
+        }
+
+        ?>
+        <div class="arwai-history-table-wrapper" style="max-height: 400px; overflow-y: auto;">
+            <table class="widefat fixed striped">
+                <thead>
+                    <tr>
+                        <th style="width: 20%;">Date</th>
+                        <th style="width: 15%;">User</th>
+                        <th style="width: 15%;">Action</th>
+                        <th style="width: 50%;">Details & Data Snapshot</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php foreach ( $history_comments as $comment ) :
+                        $action_type = get_comment_meta( $comment->comment_ID, '_arwai_action_type', true );
+                        $annotation_id = get_comment_meta( $comment->comment_ID, '_arwai_annotation_id', true );
+                        $snapshot_json = get_comment_meta( $comment->comment_ID, '_arwai_annotation_snapshot', true );
+                        $snapshot = json_decode( $snapshot_json, true );
+
+                        $action_label = ucfirst( $action_type );
+                        $action_color = '#666';
+                        if ($action_type === 'create') $action_color = '#46b450';
+                        if ($action_type === 'update') $action_color = '#0073aa';
+                        if ($action_type === 'delete') $action_color = '#dc3232';
+                    ?>
+                    <tr>
+                        <td><?php echo esc_html( date_i18n( get_option('date_format') . ' ' . get_option('time_format'), strtotime($comment->comment_date) ) ); ?></td>
+                        <td><?php echo esc_html( $comment->comment_author ); ?></td>
+                        <td><span style="color: white; background: <?php echo esc_attr($action_color); ?>; padding: 2px 6px; border-radius: 3px; font-size: 12px; font-weight: bold;"><?php echo esc_html( $action_label ); ?></span></td>
+                        <td>
+                            <strong>ID:</strong> <code><?php echo esc_html( $annotation_id ); ?></code><br/>
+                            <a href="#" class="button button-small arwai-toggle-snapshot" style="margin-top: 5px;">Toggle Raw JSON</a>
+                            <div class="arwai-snapshot-data" style="display: none; margin-top: 10px; background: #f0f0f0; padding: 10px; border: 1px solid #ccc; max-height: 200px; overflow-y: auto;">
+                                <pre style="margin:0; white-space: pre-wrap; font-size: 11px;"><?php echo esc_html( wp_json_encode( $snapshot, JSON_PRETTY_PRINT ) ); ?></pre>
+                            </div>
+                        </td>
+                    </tr>
+                    <?php endforeach; ?>
+                </tbody>
+            </table>
+        </div>
+        <script>
+            jQuery(document).ready(function($) {
+                $('.arwai-toggle-snapshot').on('click', function(e) {
+                    e.preventDefault();
+                    $(this).siblings('.arwai-snapshot-data').slideToggle('fast');
+                });
+            });
+        </script>
+        <?php
     }
 
     public function render_display_mode_metabox($post) {
