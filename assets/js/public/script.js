@@ -165,6 +165,28 @@ jQuery(document).ready(function($) {
     const historyCloseBtn = $('#arwai-close-history');
     const historyFeedContent = $('#arwai-history-feed-content');
 
+    // Move sidebar to body to avoid flex/overflow clipping
+    if (historySidebar.length) {
+        historySidebar.appendTo('body');
+        // Override absolute positioning to fixed since it's now on body
+        historySidebar.css({
+            'position': 'fixed',
+            'right': '0',
+            'z-index': '999999'
+        });
+    }
+
+    function updateSidebarPosition() {
+        if (!historyVisible || !historySidebar.length || !container.length) return;
+        const viewerRect = container[0].getBoundingClientRect();
+        historySidebar.css({
+            'top': viewerRect.top + 'px',
+            'height': viewerRect.height + 'px'
+        });
+    }
+
+    $(window).on('scroll resize', updateSidebarPosition);
+
 
     // --- SELECTORS FOR THE SINGLE ANNOTATION DISPLAY ---
     const singleAnnotationContainer = $('#arwai-single-annotation-container');
@@ -192,57 +214,37 @@ jQuery(document).ready(function($) {
             return container; // Do not show widget on new, unsaved annotations
         }
 
-        // Create Tab Bar
-        const tabBar = document.createElement('div');
-        tabBar.className = 'arwai-history-widget-tabs';
-
-        const editTab = document.createElement('div');
-        editTab.className = 'arwai-history-widget-tab active';
-        editTab.innerHTML = 'Edit';
-
-        const historyTab = document.createElement('div');
-        historyTab.className = 'arwai-history-widget-tab';
-        historyTab.innerHTML = 'History';
-
-        tabBar.appendChild(editTab);
-        tabBar.appendChild(historyTab);
+        const button = document.createElement('button');
+        button.className = 'r6o-btn';
+        button.innerHTML = '<span data-feather="clock" style="width:14px;height:14px;margin-right:5px;vertical-align:middle;"></span>View History';
+        button.style.width = '100%';
+        button.style.textAlign = 'left';
+        button.style.background = '#f9f9f9';
+        button.style.borderTop = '1px solid #e5e5e5';
+        button.style.padding = '8px 12px';
+        button.style.cursor = 'pointer';
 
         const historyContainer = document.createElement('div');
         historyContainer.style.display = 'none';
         historyContainer.style.padding = '10px';
         historyContainer.style.background = '#fafafa';
-        historyContainer.style.maxHeight = '200px';
+        historyContainer.style.borderTop = '1px solid #e5e5e5';
+        historyContainer.style.maxHeight = '150px';
         historyContainer.style.overflowY = 'auto';
         historyContainer.style.fontSize = '12px';
 
-        // Listen for tab clicks to toggle visibility of standard annotorious widgets
-        editTab.addEventListener('click', () => {
-            editTab.classList.add('active');
-            historyTab.classList.remove('active');
-            historyContainer.style.display = 'none';
-            // Show all standard widgets (they are siblings of our custom widget)
-            const parent = container.parentElement;
-            if (parent) {
-                Array.from(parent.children).forEach(child => {
-                    if (child !== container) child.style.display = '';
-                });
+        button.addEventListener('click', function(e) {
+            e.preventDefault();
+            if (historyContainer.style.display === 'block') {
+                historyContainer.style.display = 'none';
+                button.innerHTML = '<span data-feather="clock" style="width:14px;height:14px;margin-right:5px;vertical-align:middle;"></span>View History';
+                if (typeof feather !== 'undefined') feather.replace();
+                return;
             }
-        });
 
-        historyTab.addEventListener('click', () => {
-            historyTab.classList.add('active');
-            editTab.classList.remove('active');
             historyContainer.style.display = 'block';
-
-            // Hide standard widgets
-            const parent = container.parentElement;
-            if (parent) {
-                Array.from(parent.children).forEach(child => {
-                    if (child !== container && !child.classList.contains('r6o-footer')) {
-                        child.style.display = 'none';
-                    }
-                });
-            }
+            button.innerHTML = '<span data-feather="chevron-up" style="width:14px;height:14px;margin-right:5px;vertical-align:middle;"></span>Hide History';
+            if (typeof feather !== 'undefined') feather.replace();
 
             historyContainer.innerHTML = '<div style="text-align:center;">Loading...</div>';
 
@@ -256,62 +258,19 @@ jQuery(document).ready(function($) {
                 success: function(response) {
                     if (response.success && response.data.history && response.data.history.length > 0) {
                         let html = '';
-                        // Reverse array to loop from oldest to newest to compute diffs
-                        const historyRev = [...response.data.history].reverse();
 
-                        for (let i = 0; i < historyRev.length; i++) {
-                            const item = historyRev[i];
+                        for (let i = 0; i < response.data.history.length; i++) {
+                            const item = response.data.history[i];
                             const dateStr = new Date(item.timestamp).toLocaleString();
-                            let diffText = '';
+                            const diffText = item.diffText || '';
 
-                            if (item.actionType === 'create') {
-                                diffText = 'Created annotation.';
-                            } else if (item.actionType === 'update') {
-                                const prevItem = historyRev[i - 1];
-                                if (prevItem) {
-                                    // Basic diff: check bodies
-                                    const currBodies = item.annotationData.body || [];
-                                    const prevBodies = prevItem.annotationData.body || [];
-
-                                    const addedTags = currBodies.filter(b => b.purpose === 'tagging' && !prevBodies.some(pb => pb.purpose === 'tagging' && pb.value === b.value));
-                                    const removedTags = prevBodies.filter(pb => pb.purpose === 'tagging' && !currBodies.some(b => b.purpose === 'tagging' && b.value === pb.value));
-
-                                    // Escape HTML utility
-                                    const escapeHtml = (unsafe) => {
-                                        return (unsafe || '').toString()
-                                            .replace(/&/g, "&amp;")
-                                            .replace(/</g, "&lt;")
-                                            .replace(/>/g, "&gt;")
-                                            .replace(/"/g, "&quot;")
-                                            .replace(/'/g, "&#039;");
-                                    };
-
-                                    if (addedTags.length > 0) diffText += `<strong>Added tag:</strong> ${addedTags.map(t => escapeHtml(t.value)).join(', ')}<br>`;
-                                    if (removedTags.length > 0) diffText += `<strong>Removed tag:</strong> ${removedTags.map(t => escapeHtml(t.value)).join(', ')}<br>`;
-
-                                    // Check comments
-                                    const currComments = currBodies.filter(b => b.purpose === 'commenting' || b.purpose === 'replying').map(b=>b.value).join(' ');
-                                    const prevComments = prevBodies.filter(pb => pb.purpose === 'commenting' || pb.purpose === 'replying').map(pb=>pb.value).join(' ');
-
-                                    if (currComments !== prevComments) {
-                                        diffText += `<strong>Updated text:</strong> "${escapeHtml(currComments)}"<br>`;
-                                    }
-
-                                    if (!diffText) diffText = 'Updated geometry/position.';
-                                } else {
-                                    diffText = 'Updated annotation.';
-                                }
-                            } else if (item.actionType === 'delete') {
-                                diffText = 'Deleted annotation.';
-                            }
-
-                            html = `
-                                <div style="margin-bottom: 12px; border-bottom: 1px solid #eee; padding-bottom: 8px;">
+                            html += `
+                                <div style="margin-bottom: 8px; border-bottom: 1px solid #eee; padding-bottom: 5px;">
                                     <strong style="color:#0073aa;">${item.userName}</strong>
-                                    <div style="color:#888; font-size:10px; margin-bottom:4px;">${dateStr}</div>
-                                    <div>${diffText}</div>
+                                    <div style="color:#888; font-size:10px;">${dateStr}</div>
+                                    <div style="margin-top:2px;">${diffText}</div>
                                 </div>
-                            ` + html; // prepend to show newest at top
+                            `;
                         }
                         historyContainer.innerHTML = html;
                     } else {
@@ -324,15 +283,11 @@ jQuery(document).ready(function($) {
             });
         });
 
-        // Insert Tab Bar at the top of the editor dynamically
-        setTimeout(() => {
-            const editorElem = container.closest('.r6o-editor');
-            if (editorElem && !editorElem.querySelector('.arwai-history-widget-tabs')) {
-                editorElem.insertBefore(tabBar, editorElem.firstChild);
-            }
-        }, 10);
-
+        container.appendChild(button);
         container.appendChild(historyContainer);
+
+        // Render feather icon in widget
+        setTimeout(() => { if (typeof feather !== 'undefined') feather.replace(); }, 10);
 
         return container;
     }
@@ -1027,6 +982,7 @@ jQuery(document).ready(function($) {
     historyButton.on('click', function() {
         historyVisible = !historyVisible;
         if (historyVisible) {
+            updateSidebarPosition();
             historySidebar.addClass('active');
             fetchAndRenderHistory();
         } else {
@@ -1076,18 +1032,17 @@ jQuery(document).ready(function($) {
         historyData.forEach(item => {
             const avatarLetter = item.userName ? item.userName.charAt(0).toUpperCase() : '?';
             const actionClass = 'arwai-action-' + item.actionType;
-            let actionText = 'updated an annotation.';
-            if (item.actionType === 'create') actionText = 'created an annotation.';
-            if (item.actionType === 'delete') actionText = 'deleted an annotation.';
 
             const dateStr = new Date(item.timestamp).toLocaleString();
+            const diffText = item.diffText || '';
 
             html += `
                 <div class="arwai-history-feed-item ${actionClass}" data-annotation-id="${item.annotationId}">
                     <div style="display:flex;">
                         <div class="arwai-history-avatar">${avatarLetter}</div>
-                        <div>
-                            <strong>${item.userName}</strong> ${actionText}
+                        <div style="width: 100%;">
+                            <strong>${item.userName}</strong><br>
+                            <div style="margin-top:2px;">${diffText}</div>
                             <div class="arwai-history-meta">${dateStr}</div>
                         </div>
                     </div>

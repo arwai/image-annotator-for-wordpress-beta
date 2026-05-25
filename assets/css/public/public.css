@@ -1147,3 +1147,7 @@ button.arwai-anno-single-tag {
     border-bottom-color: #0073aa;
     background: #fff;
 }
+
+
+/* Revert Tab css */
+.arwai-history-widget-tabs { display: none; }

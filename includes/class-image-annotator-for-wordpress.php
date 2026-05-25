@@ -729,6 +729,123 @@ public function load_public_scripts() {
         add_meta_box('arwai-image-annotator-history-metabox', __('Annotation History Logs', 'arwai-image-annotator'), array( $this, 'render_history_metabox' ), 'attachment', 'normal', 'high');
     }
 
+    private function process_history_comments( $history_comments ) {
+        // Reverse array to process from oldest to newest to compute forward diffs
+        $history_comments_asc = array_reverse( $history_comments );
+        $state_by_anno_id = [];
+        $processed_history = [];
+
+        foreach ($history_comments_asc as $comment) {
+            $action_type   = get_comment_meta( $comment->comment_ID, '_arwai_action_type', true );
+            $annotation_id = get_comment_meta( $comment->comment_ID, '_arwai_annotation_id', true );
+            $snapshot_json = get_comment_meta( $comment->comment_ID, '_arwai_annotation_snapshot', true );
+            $snapshot      = json_decode( $snapshot_json, true );
+
+            $diff_text = '';
+
+            if ($action_type === 'create') {
+                $diff_text = 'Created annotation.';
+                $state_by_anno_id[$annotation_id] = $snapshot;
+            } elseif ($action_type === 'delete') {
+                $diff_text = 'Deleted annotation.';
+                unset($state_by_anno_id[$annotation_id]);
+            } elseif ($action_type === 'update') {
+                $prev_snapshot = isset($state_by_anno_id[$annotation_id]) ? $state_by_anno_id[$annotation_id] : null;
+
+                if ($prev_snapshot) {
+                    $curr_bodies = isset($snapshot['body']) ? $snapshot['body'] : [];
+                    $prev_bodies = isset($prev_snapshot['body']) ? $prev_snapshot['body'] : [];
+
+                    // Tags
+                    $added_tags = [];
+                    $removed_tags = [];
+                    foreach ($curr_bodies as $b) {
+                        if (isset($b['purpose']) && $b['purpose'] === 'tagging') {
+                            $found = false;
+                            foreach ($prev_bodies as $pb) { if (isset($pb['purpose']) && $pb['purpose'] === 'tagging' && $pb['value'] === $b['value']) $found = true; }
+                            if (!$found) $added_tags[] = $b['value'];
+                        }
+                    }
+                    foreach ($prev_bodies as $pb) {
+                        if (isset($pb['purpose']) && $pb['purpose'] === 'tagging') {
+                            $found = false;
+                            foreach ($curr_bodies as $b) { if (isset($b['purpose']) && $b['purpose'] === 'tagging' && $b['value'] === $pb['value']) $found = true; }
+                            if (!$found) $removed_tags[] = $pb['value'];
+                        }
+                    }
+
+                    if (!empty($added_tags)) $diff_text .= '<strong>Added tag:</strong> ' . implode(', ', array_map('esc_html', $added_tags)) . '<br>';
+                    if (!empty($removed_tags)) $diff_text .= '<strong>Removed tag:</strong> ' . implode(', ', array_map('esc_html', $removed_tags)) . '<br>';
+
+                    // Comments & Replies
+                    $curr_comments = []; $prev_comments = [];
+                    $curr_replies = []; $prev_replies = [];
+
+                    foreach ($curr_bodies as $b) {
+                        if (isset($b['purpose'])) {
+                            if ($b['purpose'] === 'commenting') $curr_comments[] = $b['value'];
+                            if ($b['purpose'] === 'replying') $curr_replies[] = $b['value'];
+                        }
+                    }
+                    foreach ($prev_bodies as $pb) {
+                        if (isset($pb['purpose'])) {
+                            if ($pb['purpose'] === 'commenting') $prev_comments[] = $pb['value'];
+                            if ($pb['purpose'] === 'replying') $prev_replies[] = $pb['value'];
+                        }
+                    }
+
+                    $curr_comment_str = implode(' ', $curr_comments);
+                    $prev_comment_str = implode(' ', $prev_comments);
+                    if ($curr_comment_str !== $prev_comment_str) {
+                        if (empty($prev_comment_str) && !empty($curr_comment_str)) {
+                            $diff_text .= '<strong>Added comment:</strong> "' . esc_html($curr_comment_str) . '"<br>';
+                        } else {
+                            $diff_text .= '<strong>Updated comment:</strong> "' . esc_html($curr_comment_str) . '"<br>';
+                        }
+                    }
+
+                    $curr_reply_str = implode(' ', $curr_replies);
+                    $prev_reply_str = implode(' ', $prev_replies);
+                    if ($curr_reply_str !== $prev_reply_str) {
+                        if (empty($prev_reply_str) && !empty($curr_reply_str)) {
+                            $diff_text .= '<strong>Added reply:</strong> "' . esc_html($curr_reply_str) . '"<br>';
+                        } else {
+                            $diff_text .= '<strong>Updated reply:</strong> "' . esc_html($curr_reply_str) . '"<br>';
+                        }
+                    }
+
+                    if (empty($diff_text)) $diff_text = 'Updated geometry/position.';
+
+                } else {
+                    $diff_text = 'Updated annotation.';
+                }
+
+                $state_by_anno_id[$annotation_id] = $snapshot;
+            }
+
+            $timestamp_iso = get_comment_date('c', $comment->comment_ID);
+            $timestamp_local = date_i18n( get_option('date_format') . ' ' . get_option('time_format'), strtotime($comment->comment_date) );
+
+            $processed_history[] = [
+                'comment_obj'    => $comment,
+                'id'             => (int) $comment->comment_ID,
+                'annotationId'   => $annotation_id,
+                'attachmentId'   => (int) $comment->comment_post_ID,
+                'actionType'     => $action_type,
+                'annotationData' => $snapshot,
+                'userId'         => (int) $comment->user_id,
+                'userName'       => $comment->comment_author,
+                'timestamp'      => $timestamp_iso,
+                'timestamp_local'=> $timestamp_local,
+                'diffText'       => $diff_text,
+                'snapshot_json'  => $snapshot_json
+            ];
+        }
+
+        // Return reverse chronological (newest first)
+        return array_reverse($processed_history);
+    }
+
     public function render_history_metabox( $post ) {
         $args = [
             'post_id'             => $post->ID,
@@ -745,9 +862,7 @@ public function load_public_scripts() {
             return;
         }
 
-        // We need to loop from oldest to newest to compute diffs properly
-        $history_comments_asc = array_reverse( $history_comments );
-        $snapshots_by_anno_id = [];
+        $processed_history = $this->process_history_comments( $history_comments );
 
         ?>
         <div class="arwai-history-table-wrapper">
@@ -761,93 +876,26 @@ public function load_public_scripts() {
                     </tr>
                 </thead>
                 <tbody>
-                    <?php foreach ( $history_comments as $index => $comment ) :
-                        $action_type = get_comment_meta( $comment->comment_ID, '_arwai_action_type', true );
-                        $annotation_id = get_comment_meta( $comment->comment_ID, '_arwai_annotation_id', true );
-                        $snapshot_json = get_comment_meta( $comment->comment_ID, '_arwai_annotation_snapshot', true );
-                        $snapshot = json_decode( $snapshot_json, true );
-
+                    <?php foreach ( $processed_history as $item ) :
+                        $action_type = $item['actionType'];
                         $action_label = ucfirst( $action_type );
                         $action_color = '#666';
                         if ($action_type === 'create') $action_color = '#46b450';
                         if ($action_type === 'update') $action_color = '#0073aa';
                         if ($action_type === 'delete') $action_color = '#dc3232';
-
-                        // Calculate diff by finding the NEXT oldest snapshot for this annotation_id
-                        $diff_text = '';
-                        if ($action_type === 'update') {
-                            // Find the chronologically preceding snapshot
-                            $prev_snapshot = null;
-                            // Search forward in our main DESC array to find the immediately older one
-                            for ($i = $index + 1; $i < count($history_comments); $i++) {
-                                $older_comment = $history_comments[$i];
-                                $older_anno_id = get_comment_meta( $older_comment->comment_ID, '_arwai_annotation_id', true );
-                                if ($older_anno_id === $annotation_id) {
-                                    $prev_snapshot = json_decode( get_comment_meta( $older_comment->comment_ID, '_arwai_annotation_snapshot', true ), true );
-                                    break;
-                                }
-                            }
-
-                            if ($prev_snapshot) {
-                                $curr_bodies = isset($snapshot['body']) ? $snapshot['body'] : [];
-                                $prev_bodies = isset($prev_snapshot['body']) ? $prev_snapshot['body'] : [];
-
-                                // Check Tags
-                                $added_tags = [];
-                                $removed_tags = [];
-                                foreach ($curr_bodies as $b) {
-                                    if (isset($b['purpose']) && $b['purpose'] === 'tagging') {
-                                        $found = false;
-                                        foreach ($prev_bodies as $pb) { if (isset($pb['purpose']) && $pb['purpose'] === 'tagging' && $pb['value'] === $b['value']) $found = true; }
-                                        if (!$found) $added_tags[] = $b['value'];
-                                    }
-                                }
-                                foreach ($prev_bodies as $pb) {
-                                    if (isset($pb['purpose']) && $pb['purpose'] === 'tagging') {
-                                        $found = false;
-                                        foreach ($curr_bodies as $b) { if (isset($b['purpose']) && $b['purpose'] === 'tagging' && $b['value'] === $pb['value']) $found = true; }
-                                        if (!$found) $removed_tags[] = $pb['value'];
-                                    }
-                                }
-
-                                if (!empty($added_tags)) $diff_text .= '<strong>Added tag:</strong> ' . implode(', ', array_map('esc_html', $added_tags)) . '<br>';
-                                if (!empty($removed_tags)) $diff_text .= '<strong>Removed tag:</strong> ' . implode(', ', array_map('esc_html', $removed_tags)) . '<br>';
-
-                                // Check Comments
-                                $curr_comments = [];
-                                $prev_comments = [];
-                                foreach ($curr_bodies as $b) { if (isset($b['purpose']) && ($b['purpose'] === 'commenting' || $b['purpose'] === 'replying')) $curr_comments[] = $b['value']; }
-                                foreach ($prev_bodies as $pb) { if (isset($pb['purpose']) && ($pb['purpose'] === 'commenting' || $pb['purpose'] === 'replying')) $prev_comments[] = $pb['value']; }
-
-                                $curr_str = implode(' ', $curr_comments);
-                                $prev_str = implode(' ', $prev_comments);
-
-                                if ($curr_str !== $prev_str) {
-                                    $diff_text .= '<strong>Updated text:</strong> "' . esc_html($curr_str) . '"<br>';
-                                }
-
-                                if (empty($diff_text)) $diff_text = 'Updated geometry/position.';
-                            } else {
-                                $diff_text = 'Updated annotation.';
-                            }
-                        } else if ($action_type === 'create') {
-                            $diff_text = 'Created new annotation.';
-                        } else if ($action_type === 'delete') {
-                            $diff_text = 'Deleted annotation.';
-                        }
                     ?>
                     <tr>
-                        <td><?php echo esc_html( date_i18n( get_option('date_format') . ' ' . get_option('time_format'), strtotime($comment->comment_date) ) ); ?></td>
-                        <td><?php echo esc_html( $comment->comment_author ); ?></td>
+                        <td><?php echo esc_html( $item['timestamp_local'] ); ?></td>
+                        <td><?php echo esc_html( $item['userName'] ); ?></td>
                         <td><span style="color: white; background: <?php echo esc_attr($action_color); ?>; padding: 2px 6px; border-radius: 3px; font-size: 12px; font-weight: bold;"><?php echo esc_html( $action_label ); ?></span></td>
                         <td>
-                            <strong>ID:</strong> <code><?php echo esc_html( $annotation_id ); ?></code><br/>
+                            <strong>ID:</strong> <code><?php echo esc_html( $item['annotationId'] ); ?></code><br/>
                             <div style="margin: 8px 0; font-size: 13px;">
-                                <?php echo wp_kses_post( $diff_text ); ?>
+                                <?php echo wp_kses_post( $item['diffText'] ); ?>
                             </div>
                             <a href="#" class="button button-small arwai-toggle-snapshot" style="margin-top: 5px;">Toggle Raw JSON</a>
                             <div class="arwai-snapshot-data" style="display: none; margin-top: 10px; background: #f0f0f0; padding: 10px; border: 1px solid #ccc; max-height: 200px; overflow-y: auto;">
-                                <pre style="margin:0; white-space: pre-wrap; font-size: 11px;"><?php echo esc_html( wp_json_encode( $snapshot, JSON_PRETTY_PRINT ) ); ?></pre>
+                                <pre style="margin:0; white-space: pre-wrap; font-size: 11px;"><?php echo esc_html( wp_json_encode( $item['annotationData'], JSON_PRETTY_PRINT ) ); ?></pre>
                             </div>
                         </td>
                     </tr>
@@ -1473,22 +1521,22 @@ public function load_public_scripts() {
 
         $comments = get_comments( $args );
 
-        $history_records = array_map(function($comment) {
-            $annotation_id_meta = get_comment_meta( $comment->comment_ID, '_arwai_annotation_id', true );
-            $action_type_meta   = get_comment_meta( $comment->comment_ID, '_arwai_action_type', true );
-            $snapshot_meta      = get_comment_meta( $comment->comment_ID, '_arwai_annotation_snapshot', true );
+        $processed_history = $this->process_history_comments( $comments );
 
+        // Map it back to the exact JSON schema the frontend expects, now including diffText
+        $history_records = array_map(function($item) {
             return [
-                'id'             => (int) $comment->comment_ID,
-                'annotationId'   => $annotation_id_meta,
-                'attachmentId'   => (int) $comment->comment_post_ID,
-                'actionType'     => $action_type_meta,
-                'annotationData' => json_decode($snapshot_meta),
-                'userId'         => (int) $comment->user_id,
-                'userName'       => $comment->comment_author,
-                'timestamp'      => $comment->comment_date,
+                'id'             => $item['id'],
+                'annotationId'   => $item['annotationId'],
+                'attachmentId'   => $item['attachmentId'],
+                'actionType'     => $item['actionType'],
+                'annotationData' => $item['annotationData'],
+                'userId'         => $item['userId'],
+                'userName'       => $item['userName'],
+                'timestamp'      => $item['timestamp'], // Use the ISO string for JS parsing
+                'diffText'       => $item['diffText']
             ];
-        }, $comments);
+        }, $processed_history);
 
         wp_send_json_success(['history' => $history_records]);
         wp_die();
