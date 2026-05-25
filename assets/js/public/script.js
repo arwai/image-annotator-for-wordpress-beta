@@ -41,12 +41,15 @@ const arwaiIdFormatter = function(annotation) {
       foreignObject.setAttribute('height', '24');
       foreignObject.setAttribute('style', 'transform: translate(-12px, -12px);');
       foreignObject.style.transformOrigin = 'center center';
+      // Firefox requires explicit display and dimensions on the inner label element
+      label.setAttribute('style', 'display: block; width: 24px; height: 24px;');
     } else {
       foreignObject.setAttribute('width', '24');
       foreignObject.setAttribute('height', '24');
       label.setAttribute('width', '1');
       label.setAttribute('height', '1');
-      label.setAttribute('style', 'transform: translate(-12px, -12px);');
+      // Firefox requires explicit display and dimensions on the inner label element
+      label.setAttribute('style', 'display: block; width: 24px; height: 24px; transform: translate(-12px, -12px);');
     }
 
     // 5. Append the HTML label inside the SVG wrapper
@@ -949,6 +952,8 @@ jQuery(document).ready(function($) {
         const activeAnno = osdViewer ? osdAnno : simpleAnno;
         if (!activeAnno) return;
 
+        activeAnno.setVisible(annotationsVisible);
+
         if (annotationsVisible) {
             let currentAttachmentId;
             if (osdViewer) {
@@ -959,6 +964,7 @@ jQuery(document).ready(function($) {
 
             if (currentAttachmentId) {
                 // Requirement 4: Forced Recalculation on Toggle
+                // It is CRITICAL this happens AFTER setVisible(true) so that SVG dimensions are computable
                 if (!osdViewer && simpleAnno) {
                     const cachedData = window.arwaiAnnotationCache[currentAttachmentId];
                     if (cachedData) {
@@ -973,7 +979,6 @@ jQuery(document).ready(function($) {
             }
         }
 
-        activeAnno.setVisible(annotationsVisible);
         updateToggleUI(annotationsVisible);
     }
 
