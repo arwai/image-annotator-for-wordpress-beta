@@ -466,6 +466,17 @@ public function load_public_scripts() {
 
                             </div>
 
+                            <!-- Activity Feed Sidebar Container (Hidden via CSS transform initially) -->
+                            <div id='arwai-history-sidebar'>
+                                <div style='display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #ddd; padding-bottom: 10px; margin-bottom: 10px;'>
+                                    <h4 style='margin: 0; font-size: 14px;'>Activity Timeline</h4>
+                                    <button id='arwai-close-history' style='background: none; border: none; cursor: pointer; padding: 0;'><span data-feather='x' style='width: 16px; height: 16px;'></span></button>
+                                </div>
+                                <div id='arwai-history-feed-content'>
+                                    <div style='text-align: center; color: #888; font-size: 12px; margin-top: 20px;'>Click the clock icon to load history.</div>
+                                </div>
+                            </div>
+
                             <div id='arwai-simple-viewer-sidebar'>
 
                                 <div class='arwai-simple-viewer-buttons'>
@@ -734,8 +745,12 @@ public function load_public_scripts() {
             return;
         }
 
+        // We need to loop from oldest to newest to compute diffs properly
+        $history_comments_asc = array_reverse( $history_comments );
+        $snapshots_by_anno_id = [];
+
         ?>
-        <div class="arwai-history-table-wrapper" style="max-height: 400px; overflow-y: auto;">
+        <div class="arwai-history-table-wrapper">
             <table class="widefat fixed striped">
                 <thead>
                     <tr>
@@ -746,7 +761,7 @@ public function load_public_scripts() {
                     </tr>
                 </thead>
                 <tbody>
-                    <?php foreach ( $history_comments as $comment ) :
+                    <?php foreach ( $history_comments as $index => $comment ) :
                         $action_type = get_comment_meta( $comment->comment_ID, '_arwai_action_type', true );
                         $annotation_id = get_comment_meta( $comment->comment_ID, '_arwai_annotation_id', true );
                         $snapshot_json = get_comment_meta( $comment->comment_ID, '_arwai_annotation_snapshot', true );
@@ -757,6 +772,69 @@ public function load_public_scripts() {
                         if ($action_type === 'create') $action_color = '#46b450';
                         if ($action_type === 'update') $action_color = '#0073aa';
                         if ($action_type === 'delete') $action_color = '#dc3232';
+
+                        // Calculate diff by finding the NEXT oldest snapshot for this annotation_id
+                        $diff_text = '';
+                        if ($action_type === 'update') {
+                            // Find the chronologically preceding snapshot
+                            $prev_snapshot = null;
+                            // Search forward in our main DESC array to find the immediately older one
+                            for ($i = $index + 1; $i < count($history_comments); $i++) {
+                                $older_comment = $history_comments[$i];
+                                $older_anno_id = get_comment_meta( $older_comment->comment_ID, '_arwai_annotation_id', true );
+                                if ($older_anno_id === $annotation_id) {
+                                    $prev_snapshot = json_decode( get_comment_meta( $older_comment->comment_ID, '_arwai_annotation_snapshot', true ), true );
+                                    break;
+                                }
+                            }
+
+                            if ($prev_snapshot) {
+                                $curr_bodies = isset($snapshot['body']) ? $snapshot['body'] : [];
+                                $prev_bodies = isset($prev_snapshot['body']) ? $prev_snapshot['body'] : [];
+
+                                // Check Tags
+                                $added_tags = [];
+                                $removed_tags = [];
+                                foreach ($curr_bodies as $b) {
+                                    if (isset($b['purpose']) && $b['purpose'] === 'tagging') {
+                                        $found = false;
+                                        foreach ($prev_bodies as $pb) { if (isset($pb['purpose']) && $pb['purpose'] === 'tagging' && $pb['value'] === $b['value']) $found = true; }
+                                        if (!$found) $added_tags[] = $b['value'];
+                                    }
+                                }
+                                foreach ($prev_bodies as $pb) {
+                                    if (isset($pb['purpose']) && $pb['purpose'] === 'tagging') {
+                                        $found = false;
+                                        foreach ($curr_bodies as $b) { if (isset($b['purpose']) && $b['purpose'] === 'tagging' && $b['value'] === $pb['value']) $found = true; }
+                                        if (!$found) $removed_tags[] = $pb['value'];
+                                    }
+                                }
+
+                                if (!empty($added_tags)) $diff_text .= '<strong>Added tag:</strong> ' . implode(', ', array_map('esc_html', $added_tags)) . '<br>';
+                                if (!empty($removed_tags)) $diff_text .= '<strong>Removed tag:</strong> ' . implode(', ', array_map('esc_html', $removed_tags)) . '<br>';
+
+                                // Check Comments
+                                $curr_comments = [];
+                                $prev_comments = [];
+                                foreach ($curr_bodies as $b) { if (isset($b['purpose']) && ($b['purpose'] === 'commenting' || $b['purpose'] === 'replying')) $curr_comments[] = $b['value']; }
+                                foreach ($prev_bodies as $pb) { if (isset($pb['purpose']) && ($pb['purpose'] === 'commenting' || $pb['purpose'] === 'replying')) $prev_comments[] = $pb['value']; }
+
+                                $curr_str = implode(' ', $curr_comments);
+                                $prev_str = implode(' ', $prev_comments);
+
+                                if ($curr_str !== $prev_str) {
+                                    $diff_text .= '<strong>Updated text:</strong> "' . esc_html($curr_str) . '"<br>';
+                                }
+
+                                if (empty($diff_text)) $diff_text = 'Updated geometry/position.';
+                            } else {
+                                $diff_text = 'Updated annotation.';
+                            }
+                        } else if ($action_type === 'create') {
+                            $diff_text = 'Created new annotation.';
+                        } else if ($action_type === 'delete') {
+                            $diff_text = 'Deleted annotation.';
+                        }
                     ?>
                     <tr>
                         <td><?php echo esc_html( date_i18n( get_option('date_format') . ' ' . get_option('time_format'), strtotime($comment->comment_date) ) ); ?></td>
@@ -764,6 +842,9 @@ public function load_public_scripts() {
                         <td><span style="color: white; background: <?php echo esc_attr($action_color); ?>; padding: 2px 6px; border-radius: 3px; font-size: 12px; font-weight: bold;"><?php echo esc_html( $action_label ); ?></span></td>
                         <td>
                             <strong>ID:</strong> <code><?php echo esc_html( $annotation_id ); ?></code><br/>
+                            <div style="margin: 8px 0; font-size: 13px;">
+                                <?php echo wp_kses_post( $diff_text ); ?>
+                            </div>
                             <a href="#" class="button button-small arwai-toggle-snapshot" style="margin-top: 5px;">Toggle Raw JSON</a>
                             <div class="arwai-snapshot-data" style="display: none; margin-top: 10px; background: #f0f0f0; padding: 10px; border: 1px solid #ccc; max-height: 200px; overflow-y: auto;">
                                 <pre style="margin:0; white-space: pre-wrap; font-size: 11px;"><?php echo esc_html( wp_json_encode( $snapshot, JSON_PRETTY_PRINT ) ); ?></pre>

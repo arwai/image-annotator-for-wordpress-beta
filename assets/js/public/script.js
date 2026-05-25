@@ -192,33 +192,58 @@ jQuery(document).ready(function($) {
             return container; // Do not show widget on new, unsaved annotations
         }
 
-        const button = document.createElement('button');
-        button.className = 'r6o-btn';
-        button.innerHTML = '<span data-feather="clock" style="width:14px;height:14px;margin-right:5px;vertical-align:middle;"></span>View History';
-        button.style.width = '100%';
-        button.style.textAlign = 'left';
-        button.style.background = '#f9f9f9';
-        button.style.borderTop = '1px solid #e5e5e5';
-        button.style.padding = '8px 12px';
-        button.style.cursor = 'pointer';
+        // Create Tab Bar
+        const tabBar = document.createElement('div');
+        tabBar.className = 'arwai-history-widget-tabs';
+
+        const editTab = document.createElement('div');
+        editTab.className = 'arwai-history-widget-tab active';
+        editTab.innerHTML = 'Edit';
+
+        const historyTab = document.createElement('div');
+        historyTab.className = 'arwai-history-widget-tab';
+        historyTab.innerHTML = 'History';
+
+        tabBar.appendChild(editTab);
+        tabBar.appendChild(historyTab);
 
         const historyContainer = document.createElement('div');
         historyContainer.style.display = 'none';
         historyContainer.style.padding = '10px';
         historyContainer.style.background = '#fafafa';
-        historyContainer.style.borderTop = '1px solid #e5e5e5';
-        historyContainer.style.maxHeight = '150px';
+        historyContainer.style.maxHeight = '200px';
         historyContainer.style.overflowY = 'auto';
         historyContainer.style.fontSize = '12px';
 
-        button.addEventListener('click', function(e) {
-            e.preventDefault();
-            if (historyContainer.style.display === 'block') {
-                historyContainer.style.display = 'none';
-                return;
+        // Listen for tab clicks to toggle visibility of standard annotorious widgets
+        editTab.addEventListener('click', () => {
+            editTab.classList.add('active');
+            historyTab.classList.remove('active');
+            historyContainer.style.display = 'none';
+            // Show all standard widgets (they are siblings of our custom widget)
+            const parent = container.parentElement;
+            if (parent) {
+                Array.from(parent.children).forEach(child => {
+                    if (child !== container) child.style.display = '';
+                });
+            }
+        });
+
+        historyTab.addEventListener('click', () => {
+            historyTab.classList.add('active');
+            editTab.classList.remove('active');
+            historyContainer.style.display = 'block';
+
+            // Hide standard widgets
+            const parent = container.parentElement;
+            if (parent) {
+                Array.from(parent.children).forEach(child => {
+                    if (child !== container && !child.classList.contains('r6o-footer')) {
+                        child.style.display = 'none';
+                    }
+                });
             }
 
-            historyContainer.style.display = 'block';
             historyContainer.innerHTML = '<div style="text-align:center;">Loading...</div>';
 
             $.ajax({
@@ -251,28 +276,40 @@ jQuery(document).ready(function($) {
                                     const addedTags = currBodies.filter(b => b.purpose === 'tagging' && !prevBodies.some(pb => pb.purpose === 'tagging' && pb.value === b.value));
                                     const removedTags = prevBodies.filter(pb => pb.purpose === 'tagging' && !currBodies.some(b => b.purpose === 'tagging' && b.value === pb.value));
 
-                                    if (addedTags.length > 0) diffText += `Added tag(s): ${addedTags.map(t => t.value).join(', ')}<br>`;
-                                    if (removedTags.length > 0) diffText += `Removed tag(s): ${removedTags.map(t => t.value).join(', ')}<br>`;
+                                    // Escape HTML utility
+                                    const escapeHtml = (unsafe) => {
+                                        return (unsafe || '').toString()
+                                            .replace(/&/g, "&amp;")
+                                            .replace(/</g, "&lt;")
+                                            .replace(/>/g, "&gt;")
+                                            .replace(/"/g, "&quot;")
+                                            .replace(/'/g, "&#039;");
+                                    };
+
+                                    if (addedTags.length > 0) diffText += `<strong>Added tag:</strong> ${addedTags.map(t => escapeHtml(t.value)).join(', ')}<br>`;
+                                    if (removedTags.length > 0) diffText += `<strong>Removed tag:</strong> ${removedTags.map(t => escapeHtml(t.value)).join(', ')}<br>`;
 
                                     // Check comments
                                     const currComments = currBodies.filter(b => b.purpose === 'commenting' || b.purpose === 'replying').map(b=>b.value).join(' ');
                                     const prevComments = prevBodies.filter(pb => pb.purpose === 'commenting' || pb.purpose === 'replying').map(pb=>pb.value).join(' ');
 
                                     if (currComments !== prevComments) {
-                                        diffText += `Updated text content.<br>`;
+                                        diffText += `<strong>Updated text:</strong> "${escapeHtml(currComments)}"<br>`;
                                     }
 
                                     if (!diffText) diffText = 'Updated geometry/position.';
                                 } else {
                                     diffText = 'Updated annotation.';
                                 }
+                            } else if (item.actionType === 'delete') {
+                                diffText = 'Deleted annotation.';
                             }
 
                             html = `
-                                <div style="margin-bottom: 8px; border-bottom: 1px solid #eee; padding-bottom: 5px;">
+                                <div style="margin-bottom: 12px; border-bottom: 1px solid #eee; padding-bottom: 8px;">
                                     <strong style="color:#0073aa;">${item.userName}</strong>
-                                    <div style="color:#888; font-size:10px;">${dateStr}</div>
-                                    <div style="margin-top:2px;">${diffText}</div>
+                                    <div style="color:#888; font-size:10px; margin-bottom:4px;">${dateStr}</div>
+                                    <div>${diffText}</div>
                                 </div>
                             ` + html; // prepend to show newest at top
                         }
@@ -287,11 +324,15 @@ jQuery(document).ready(function($) {
             });
         });
 
-        container.appendChild(button);
-        container.appendChild(historyContainer);
+        // Insert Tab Bar at the top of the editor dynamically
+        setTimeout(() => {
+            const editorElem = container.closest('.r6o-editor');
+            if (editorElem && !editorElem.querySelector('.arwai-history-widget-tabs')) {
+                editorElem.insertBefore(tabBar, editorElem.firstChild);
+            }
+        }, 10);
 
-        // Render feather icon in widget
-        setTimeout(() => { if (typeof feather !== 'undefined') feather.replace(); }, 10);
+        container.appendChild(historyContainer);
 
         return container;
     }
@@ -986,16 +1027,16 @@ jQuery(document).ready(function($) {
     historyButton.on('click', function() {
         historyVisible = !historyVisible;
         if (historyVisible) {
-            historySidebar.show();
+            historySidebar.addClass('active');
             fetchAndRenderHistory();
         } else {
-            historySidebar.hide();
+            historySidebar.removeClass('active');
         }
     });
 
     historyCloseBtn.on('click', function() {
         historyVisible = false;
-        historySidebar.hide();
+        historySidebar.removeClass('active');
     });
 
     function fetchAndRenderHistory() {
