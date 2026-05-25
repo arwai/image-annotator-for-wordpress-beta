@@ -726,7 +726,7 @@ ul#arwai-single-annotation li div.arwai-anno-single-body ul li p{
 
 /* base annotation label style*/
 .a9s-annotation foreignObject label {
-    display: flex!;
+    display: flex!important;
     width: 100%;
     height: 100%;
     border-radius: 50%;
