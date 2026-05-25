@@ -1151,3 +1151,19 @@ button.arwai-anno-single-tag {
 
 /* Revert Tab css */
 .arwai-history-widget-tabs { display: none; }
+
+
+/* Annotorious History Widget Compact Fixes */
+.a9s-annotationlayer .r6o-widget.arwai-history-widget {
+    padding: 0;
+    margin: 0;
+}
+.a9s-annotationlayer .r6o-editor .r6o-widget {
+    padding: 8px 12px;
+}
+.a9s-annotationlayer .r6o-editor .r6o-widget.arwai-history-widget {
+    padding: 0;
+}
+.a9s-annotationlayer .r6o-editor .r6o-footer {
+    padding: 8px 12px;
+}

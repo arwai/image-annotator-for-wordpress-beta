@@ -220,9 +220,14 @@ jQuery(document).ready(function($) {
         button.style.width = '100%';
         button.style.textAlign = 'left';
         button.style.background = '#f9f9f9';
+        button.style.color = '#333';
         button.style.borderTop = '1px solid #e5e5e5';
+        button.style.borderBottom = 'none';
+        button.style.borderLeft = 'none';
+        button.style.borderRight = 'none';
         button.style.padding = '8px 12px';
         button.style.cursor = 'pointer';
+        button.style.outline = 'none';
 
         const historyContainer = document.createElement('div');
         historyContainer.style.display = 'none';
@@ -598,7 +603,7 @@ jQuery(document).ready(function($) {
             highlightedAnnotation = annotation;
 
             if (historyVisible) {
-                fetchAndRenderHistory(annotation.id);
+                fetchAndRenderHistory(annotation);
             }
         });
 
@@ -746,6 +751,10 @@ jQuery(document).ready(function($) {
 
     // --- 5. OPENSEADRAGON (DEEP ZOOM) LOGIC ---
     function launchOsdViewer() {
+        if (historyVisible) {
+            historyVisible = false;
+            historySidebar.removeClass('active');
+        }
         annotationsVisible = true;
         osdModal.show();
         if (simpleAnno) {
@@ -1005,7 +1014,7 @@ jQuery(document).ready(function($) {
 
             // Check if an annotation is already highlighted
             if (highlightedAnnotation) {
-                fetchAndRenderHistory(highlightedAnnotation.id);
+                fetchAndRenderHistory(highlightedAnnotation);
             } else {
                 clearHistorySidebar();
             }
@@ -1025,15 +1034,23 @@ jQuery(document).ready(function($) {
         activeHistoryAnnotationId = null;
     }
 
-    function fetchAndRenderHistory(annotationId) {
-        if (!annotationId) return;
+    function fetchAndRenderHistory(annotation) {
+        if (!annotation || !annotation.id) return;
+        const annotationId = annotation.id;
         activeHistoryAnnotationId = annotationId;
 
         historyFeedContent.html('<div style="text-align:center; padding: 20px;"><span data-feather="loader" style="animation: spin 1s infinite linear;"></span></div>');
         if (typeof feather !== 'undefined') feather.replace();
 
-        const shortId = annotationId.substring(1);
-        historySidebar.find('h4').text('History: ' + shortId);
+        // Extract arwai-AnnotationID if available
+        let displayId = annotationId.substring(1);
+        if (annotation.body && Array.isArray(annotation.body)) {
+            const idBody = annotation.body.find(b => b.purpose === 'arwai-AnnotationID');
+            if (idBody && idBody.value) {
+                displayId = idBody.value;
+            }
+        }
+        historySidebar.find('h4').text('History: ' + displayId);
 
         $.ajax({
             url: ajax_url,
