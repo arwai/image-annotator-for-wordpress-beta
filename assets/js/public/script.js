@@ -592,12 +592,23 @@ jQuery(document).ready(function($) {
         });
         
         annoInstance.on('selectAnnotation', function(annotation, element) {
-            if (highlightedAnnotation) {
-                highlightedAnnotation.classList.remove('is-highlighted');
+            if (annoInstance === simpleAnno) {
+                updateSingleAnnotationDisplay(annotation);
             }
-            element.classList.add('is-highlighted');
-            highlightedAnnotation = element;
-            updateSingleAnnotationDisplay(annotation);
+            highlightedAnnotation = annotation;
+
+            if (historyVisible) {
+                fetchAndRenderHistory(annotation.id);
+            }
+        });
+
+        annoInstance.on('cancelSelected', function() {
+            highlightedAnnotation = null;
+            if (singleAnnotationContainer.length) singleAnnotationContainer.hide();
+
+            if (historyVisible) {
+                clearHistorySidebar();
+            }
         });
 
 
@@ -979,12 +990,25 @@ jQuery(document).ready(function($) {
     osdCloseButton.on('click', closeOsdViewer);
 
     // --- History Sidebar Logic ---
+    let activeHistoryAnnotationId = null;
+
     historyButton.on('click', function() {
         historyVisible = !historyVisible;
         if (historyVisible) {
+            // Force annotations on if they are currently off
+            if (!annotationsVisible) {
+                handleAnnotationToggle();
+            }
+
             updateSidebarPosition();
             historySidebar.addClass('active');
-            fetchAndRenderHistory();
+
+            // Check if an annotation is already highlighted
+            if (highlightedAnnotation) {
+                fetchAndRenderHistory(highlightedAnnotation.id);
+            } else {
+                clearHistorySidebar();
+            }
         } else {
             historySidebar.removeClass('active');
         }
@@ -995,21 +1019,33 @@ jQuery(document).ready(function($) {
         historySidebar.removeClass('active');
     });
 
-    function fetchAndRenderHistory() {
+    function clearHistorySidebar() {
+        historyFeedContent.html('<div style="text-align:center; color:#888; padding: 40px 20px;">Click on an annotation to view its history.</div>');
+        historySidebar.find('h4').text('Activity Timeline');
+        activeHistoryAnnotationId = null;
+    }
+
+    function fetchAndRenderHistory(annotationId) {
+        if (!annotationId) return;
+        activeHistoryAnnotationId = annotationId;
+
         historyFeedContent.html('<div style="text-align:center; padding: 20px;"><span data-feather="loader" style="animation: spin 1s infinite linear;"></span></div>');
         if (typeof feather !== 'undefined') feather.replace();
 
-        const currentAttachmentId = images[currentIndex].post_id;
-        if (!currentAttachmentId) return;
+        const shortId = annotationId.substring(1);
+        historySidebar.find('h4').text('History: ' + shortId);
 
         $.ajax({
             url: ajax_url,
             method: 'GET',
             data: {
                 action: 'arwai_get_annotorious_history',
-                attachment_id: currentAttachmentId
+                annotation_id: annotationId
             },
             success: function(response) {
+                // Ensure we are still displaying the history for the requested annotation
+                if (activeHistoryAnnotationId !== annotationId) return;
+
                 if (response.success && response.data.history) {
                     renderHistoryFeed(response.data.history);
                 } else {
@@ -1017,14 +1053,16 @@ jQuery(document).ready(function($) {
                 }
             },
             error: function() {
-                historyFeedContent.html('<div style="text-align:center; color:#888; padding: 20px;">Error connecting to server.</div>');
+                if (activeHistoryAnnotationId === annotationId) {
+                    historyFeedContent.html('<div style="text-align:center; color:#888; padding: 20px;">Error connecting to server.</div>');
+                }
             }
         });
     }
 
     function renderHistoryFeed(historyData) {
         if (!historyData || historyData.length === 0) {
-            historyFeedContent.html('<div style="text-align:center; color:#888; padding: 20px;">No activity found for this image.</div>');
+            historyFeedContent.html('<div style="text-align:center; color:#888; padding: 20px;">No activity found.</div>');
             return;
         }
 
@@ -1057,7 +1095,6 @@ jQuery(document).ready(function($) {
             const annoId = $(this).data('annotation-id');
             const activeAnno = osdViewer ? osdAnno : simpleAnno;
             if (activeAnno && annoId) {
-                // Ensure annotations are visible before selecting
                 if (!annotationsVisible) {
                     handleAnnotationToggle();
                 }
@@ -1069,7 +1106,7 @@ jQuery(document).ready(function($) {
     // Refresh history if sidebar is open and slide changes
     slickSlider.on('afterChange', function(event, slick, newIndex) {
         if (historyVisible) {
-            fetchAndRenderHistory();
+            clearHistorySidebar();
         }
     });
 

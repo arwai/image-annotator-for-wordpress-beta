@@ -778,41 +778,32 @@ public function load_public_scripts() {
                     if (!empty($removed_tags)) $diff_text .= '<strong>Removed tag:</strong> ' . implode(', ', array_map('esc_html', $removed_tags)) . '<br>';
 
                     // Comments & Replies
-                    $curr_comments = []; $prev_comments = [];
-                    $curr_replies = []; $prev_replies = [];
+                    $process_text_bodies = function($purpose, $curr_b, $prev_b, $add_label, $upd_label, $del_label) use (&$diff_text) {
+                        $curr_arr = []; $prev_arr = [];
+                        foreach ($curr_b as $b) { if (isset($b['purpose']) && $b['purpose'] === $purpose) $curr_arr[] = $b['value']; }
+                        foreach ($prev_b as $pb) { if (isset($pb['purpose']) && $pb['purpose'] === $purpose) $prev_arr[] = $pb['value']; }
 
-                    foreach ($curr_bodies as $b) {
-                        if (isset($b['purpose'])) {
-                            if ($b['purpose'] === 'commenting') $curr_comments[] = $b['value'];
-                            if ($b['purpose'] === 'replying') $curr_replies[] = $b['value'];
-                        }
-                    }
-                    foreach ($prev_bodies as $pb) {
-                        if (isset($pb['purpose'])) {
-                            if ($pb['purpose'] === 'commenting') $prev_comments[] = $pb['value'];
-                            if ($pb['purpose'] === 'replying') $prev_replies[] = $pb['value'];
-                        }
-                    }
+                        // Simple array diffing assuming order maps somewhat linearly
+                        // For comments, usually there's only 1. For replies, there are many.
+                        $max_len = max(count($curr_arr), count($prev_arr));
+                        for ($i = 0; $i < $max_len; $i++) {
+                            $curr_val = isset($curr_arr[$i]) ? $curr_arr[$i] : null;
+                            $prev_val = isset($prev_arr[$i]) ? $prev_arr[$i] : null;
 
-                    $curr_comment_str = implode(' ', $curr_comments);
-                    $prev_comment_str = implode(' ', $prev_comments);
-                    if ($curr_comment_str !== $prev_comment_str) {
-                        if (empty($prev_comment_str) && !empty($curr_comment_str)) {
-                            $diff_text .= '<strong>Added comment:</strong> "' . esc_html($curr_comment_str) . '"<br>';
-                        } else {
-                            $diff_text .= '<strong>Updated comment:</strong> "' . esc_html($curr_comment_str) . '"<br>';
+                            if ($curr_val !== $prev_val) {
+                                if ($prev_val === null && $curr_val !== null) {
+                                    $diff_text .= '<strong>' . $add_label . ':</strong> "' . esc_html($curr_val) . '"<br>';
+                                } elseif ($curr_val === null && $prev_val !== null) {
+                                    $diff_text .= '<strong>' . $del_label . ':</strong> "' . esc_html($prev_val) . '"<br>';
+                                } else {
+                                    $diff_text .= '<strong>' . $upd_label . ':</strong> "' . esc_html($curr_val) . '"<br>';
+                                }
+                            }
                         }
-                    }
+                    };
 
-                    $curr_reply_str = implode(' ', $curr_replies);
-                    $prev_reply_str = implode(' ', $prev_replies);
-                    if ($curr_reply_str !== $prev_reply_str) {
-                        if (empty($prev_reply_str) && !empty($curr_reply_str)) {
-                            $diff_text .= '<strong>Added reply:</strong> "' . esc_html($curr_reply_str) . '"<br>';
-                        } else {
-                            $diff_text .= '<strong>Updated reply:</strong> "' . esc_html($curr_reply_str) . '"<br>';
-                        }
-                    }
+                    $process_text_bodies('commenting', $curr_bodies, $prev_bodies, 'Added comment', 'Updated comment', 'Deleted comment');
+                    $process_text_bodies('replying', $curr_bodies, $prev_bodies, 'Added reply', 'Updated reply', 'Deleted reply');
 
                     if (empty($diff_text)) $diff_text = 'Updated geometry/position.';
 
