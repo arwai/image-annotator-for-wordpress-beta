@@ -1436,7 +1436,7 @@ public function load_public_scripts() {
         global $wpdb;
 
         $attachment_id = $request->get_param( 'attachment_id' );
-        $annoid = $request->get_param( 'annotation_id' );
+        $annoid = urldecode( $request->get_param( 'annotation_id' ) );
         $annotation_json = $request->get_param( 'annotation' );
         $iiif_source_url = $request->get_param( 'iiif_source_url' ) ? esc_url_raw( $request->get_param( 'iiif_source_url' ) ) : '';
         $parent_post_id = $request->get_param( 'post_id' ) ? intval( $request->get_param( 'post_id' ) ) : 0;
@@ -1513,7 +1513,7 @@ public function load_public_scripts() {
         global $wpdb;
 
         $attachment_id = $request->get_param( 'attachment_id' );
-        $annoid = $request->get_param( 'annotation_id' );
+        $annoid = urldecode( $request->get_param( 'annotation_id' ) );
         $annotation_json = $request->get_param( 'annotation' );
         $parent_post_id = $request->get_param( 'post_id' ) ? intval( $request->get_param( 'post_id' ) ) : 0;
 
@@ -1554,7 +1554,7 @@ public function load_public_scripts() {
 
         $deleted = $wpdb->delete( $this->table_name, array( 'annotation_id_from_annotorious' => $annoid, 'attachment_id' => $attachment_id ), array( '%s', '%d' ) );
 
-        if ( $deleted ) {
+        if ( false !== $deleted ) {
             $response = rest_ensure_response( null );
             $response->set_status( 204 ); // No content on successful delete
             return $response;
