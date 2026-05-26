@@ -548,7 +548,7 @@ jQuery(document).ready(function($) {
                 let method = 'POST';
 
                 if (action === 'update') {
-                    endpoint += `/${annot.id}`;
+                    endpoint += `/${encodeURIComponent(annot.id)}`;
                     method = 'PUT';
                 }
 
@@ -592,7 +592,7 @@ jQuery(document).ready(function($) {
                 sendRequest(annotation);
             }
         } else if (action === 'delete') {
-            const endpoint = `${restUrl}arwai/v1/annotations/${attachmentId}/${annotation.id}`;
+            const endpoint = `${restUrl}arwai/v1/annotations/${attachmentId}/${encodeURIComponent(annotation.id)}`;
             const payload = {
                 annotation: JSON.stringify(annotation),
                 post_id: post_id

@@ -115,7 +115,7 @@ class Image_Annotator_for_WordPress {
             ),
         ) );
 
-        register_rest_route( 'arwai/v1', '/annotations/(?P<attachment_id>\d+)/(?P<annotation_id>[a-zA-Z0-9\-_]+)', array(
+        register_rest_route( 'arwai/v1', '/annotations/(?P<attachment_id>\d+)/(?P<annotation_id>[^/]+)', array(
             array(
                 'methods'             => WP_REST_Server::EDITABLE, // PUT or PATCH
                 'callback'            => array( $this, 'rest_anno_update' ),
