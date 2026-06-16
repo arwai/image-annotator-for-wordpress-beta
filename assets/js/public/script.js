@@ -368,42 +368,6 @@ jQuery(document).ready(function($) {
             .catch(error => console.error('Error loading annotations:', error));
     }
 
-    /**
-     * Manually generates a canvas snippet from a full-resolution image.
-     * @param {object} annotation - The annotation object.
-     * @param {HTMLElement} imageEl - The source image element (must be fully loaded).
-     * @returns {HTMLCanvasElement|null}
-     */
-    function createSnippet(annotation, imageEl) {
-        if (!annotation.target?.selector?.value.startsWith('xywh=percent:') || !imageEl) {
-            return null;
-        }
-
-        const coords = annotation.target.selector.value.substring(13).split(',');
-        const percent = {
-            x: parseFloat(coords[0]), y: parseFloat(coords[1]),
-            w: parseFloat(coords[2]), h: parseFloat(coords[3])
-        };
-
-        const naturalW = imageEl.naturalWidth;
-        const naturalH = imageEl.naturalHeight;
-
-        const sx = (percent.x / 100) * naturalW;
-        const sy = (percent.y / 100) * naturalH;
-        const sWidth = (percent.w / 100) * naturalW;
-        const sHeight = (percent.h / 100) * naturalH;
-
-        const canvas = document.createElement('canvas');
-        const ctx = canvas.getContext('2d');
-        
-        canvas.width = sWidth;
-        canvas.height = sHeight;
-
-        ctx.drawImage(imageEl, sx, sy, sWidth, sHeight, 0, 0, sWidth, sHeight);
-        return canvas;
-    }
-
-
     const escapeHTML = (str) => {
         if (!str) return '';
         const div = document.createElement('div');
@@ -543,8 +507,6 @@ jQuery(document).ready(function($) {
         const restUrl = (Arwai_Annotator_Data && Arwai_Annotator_Data.rest_url) ? Arwai_Annotator_Data.rest_url : '/wp-json/';
 
         if (action === 'create' || action === 'update') {
-            const isOsd = (annoInstance === osdAnno);
-
             const sendRequest = (annot) => {
                 const payload = {
                     annotation: JSON.stringify(annot),
@@ -582,23 +544,7 @@ jQuery(document).ready(function($) {
                 .catch(error => console.error(`Error saving annotation (${action}):`, error));
             };
 
-            if (isOsd) {
-                const imageUrl = images[osdViewer.currentPage()].fullUrl;
-                const imageEl = new Image();
-                imageEl.crossOrigin = "Anonymous";
-                imageEl.onload = function() {
-                    const snippetIndex = annotation.body.findIndex(b => b.purpose === 'arwai-snippet');
-                    if (snippetIndex > -1) annotation.body.splice(snippetIndex, 1);
-                    const canvas = createSnippet(annotation, imageEl);
-                    if (canvas) {
-                        annotation.body.push({ type: 'TextualBody', purpose: 'arwai-snippet', value: canvas.toDataURL('image/png') });
-                    }
-                    sendRequest(annotation);
-                };
-                imageEl.src = imageUrl;
-            } else {
-                sendRequest(annotation);
-            }
+            sendRequest(annotation);
         } else if (action === 'delete') {
             const endpoint = `${restUrl}arwai/v1/annotations/${attachmentId}/${encodeURIComponent(annotation.id)}`;
             const payload = {

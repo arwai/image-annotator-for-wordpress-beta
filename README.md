@@ -14,8 +14,6 @@ Draw & Tag: Draw rectangular regions on images, add text comments, and apply tag
 
 Taxonomy Syncing: Optionally sync annotation tags directly to WordPress taxonomies (like Categories or Tags). This automatically assigns the tags you make on a specific image region to the WordPress Attachment post itself.
 
-Image Snippet Capture: When an annotation is created or updated, the plugin automatically captures an internal base64 canvas snippet (thumbnail) of the exact annotated region.
-
 Dynamic Formatting: Annotations tagged with "Important" (or "Importante") are automatically styled with a distinct visual highlight.
 
 Annotation History Tracking: Every action (create, update, delete) is tracked in a custom database table (annotorious_history), recording the user, timestamp, and a snapshot of the data.
