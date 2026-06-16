@@ -356,7 +356,8 @@ jQuery(document).ready(function($) {
             return;
         }
 
-        fetch(rest_url + '?attachment_id=' + attachmentId)
+        const restUrl = (Arwai_Annotator_Data && Arwai_Annotator_Data.rest_url) ? Arwai_Annotator_Data.rest_url : '/wp-json/';
+        fetch(`${restUrl}arwai/v1/annotations/${attachmentId}`)
             .then(response => response.json())
             .then(annotations => {
                 if (Array.isArray(annotations)) {
@@ -364,7 +365,7 @@ jQuery(document).ready(function($) {
                     annoInstance.setAnnotations(annotations);
                 }
             })
-            .catch(error => console.error('Error fetching annotations:', error));
+            .catch(error => console.error('Error loading annotations:', error));
     }
 
     /**
@@ -539,42 +540,46 @@ jQuery(document).ready(function($) {
             window.arwaiAnnotationCache[attachmentId] = annoInstance.getAnnotations();
         };
 
+        const restUrl = (Arwai_Annotator_Data && Arwai_Annotator_Data.rest_url) ? Arwai_Annotator_Data.rest_url : '/wp-json/';
+
         if (action === 'create' || action === 'update') {
             const isOsd = (annoInstance === osdAnno);
 
             const sendRequest = (annot) => {
                 const payload = {
                     annotation: JSON.stringify(annot),
-                    attachment_id: attachmentId,
                     iiif_source_url: iiifSourceUrl,
                     post_id: post_id
                 };
 
-                let fetchUrl = rest_url;
-                let fetchMethod = 'POST';
+                let endpoint = `${restUrl}arwai/v1/annotations/${attachmentId}`;
+                let method = 'POST';
 
                 if (action === 'update') {
-                    fetchUrl = rest_url + '/' + encodeURIComponent(annot.id);
-                    fetchMethod = 'PUT';
+                    endpoint += `/${encodeURIComponent(annot.id)}`;
+                    method = 'PUT';
                 }
 
-                fetch(fetchUrl, {
-                    method: fetchMethod,
+                fetch(endpoint, {
+                    method: method,
                     headers: {
                         'Content-Type': 'application/json',
-                        'X-WP-Nonce': restNonce
+                        'X-WP-Nonce': anno_options.annoNonce
                     },
                     body: JSON.stringify(payload)
                 })
-                .then(response => response.json())
+                .then(response => {
+                    if (!response.ok) throw new Error('Network response was not ok');
+                    return response.json();
+                })
                 .then(data => {
-                    if (action === 'create' && data && data.annotation) {
+                    if (action === 'create' && data.annotation) {
                         annoInstance.removeAnnotation(annot);
                         annoInstance.addAnnotation(data.annotation);
                     }
                     syncCache();
                 })
-                .catch(error => console.error('Error saving annotation:', error));
+                .catch(error => console.error(`Error saving annotation (${action}):`, error));
             };
 
             if (isOsd) {
@@ -595,23 +600,23 @@ jQuery(document).ready(function($) {
                 sendRequest(annotation);
             }
         } else if (action === 'delete') {
-            fetch(rest_url + '/' + encodeURIComponent(annotation.id), {
+            const endpoint = `${restUrl}arwai/v1/annotations/${attachmentId}/${encodeURIComponent(annotation.id)}`;
+            const payload = {
+                annotation: JSON.stringify(annotation),
+                post_id: post_id
+            };
+
+            fetch(endpoint, {
                 method: 'DELETE',
                 headers: {
                     'Content-Type': 'application/json',
-                    'X-WP-Nonce': restNonce
+                    'X-WP-Nonce': anno_options.annoNonce
                 },
-                body: JSON.stringify({
-                    annotation: JSON.stringify(annotation),
-                    attachment_id: attachmentId
-                })
+                body: JSON.stringify(payload)
             })
             .then(response => {
-                if (response.ok) {
-                    syncCache();
-                } else {
-                    console.error('Error deleting annotation');
-                }
+                if (!response.ok) throw new Error('Network response was not ok');
+                syncCache();
             })
             .catch(error => console.error('Error deleting annotation:', error));
         }

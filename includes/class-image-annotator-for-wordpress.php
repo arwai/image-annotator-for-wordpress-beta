@@ -54,6 +54,8 @@ class Image_Annotator_for_WordPress {
         add_shortcode( 'arwai_post_tags_list', array( $this, 'render_post_tags_list_shortcode' ) );
 
         // AJAX actions
+        add_action( 'rest_api_init', array( $this, 'register_rest_routes' ) );
+
         add_action( 'wp_ajax_arwai_get_annotorious_history', array( $this, 'get_annotorious_history' ) );
         add_action( 'wp_ajax_nopriv_arwai_get_annotorious_history', array( $this, 'get_annotorious_history' ) );
         add_action( 'wp_ajax_arwai_add_taxonomy_term', array( $this, 'arwai_add_taxonomy_term' ) );
@@ -84,6 +86,68 @@ class Image_Annotator_for_WordPress {
     private function get_active_post_types() {
         $active_types = get_option( self::OPTION_ACTIVE_POST_TYPES, array( 'post', 'page' ) );
         return !empty($active_types) ? $active_types : array( 'post', 'page' );
+    }
+
+    public function register_rest_routes() {
+        register_rest_route( 'arwai/v1', '/annotations/(?P<attachment_id>\d+)', array(
+            array(
+                'methods'             => WP_REST_Server::READABLE,
+                'callback'            => array( $this, 'rest_anno_get' ),
+                'permission_callback' => '__return_true', // Anyone can read
+                'args'                => array(
+                    'attachment_id' => array(
+                        'validate_callback' => function($param, $request, $key) {
+                            return is_numeric( $param );
+                        }
+                    ),
+                ),
+            ),
+            array(
+                'methods'             => WP_REST_Server::CREATABLE,
+                'callback'            => array( $this, 'rest_anno_add' ),
+                'permission_callback' => function () {
+                    return current_user_can( 'edit_posts' );
+                },
+                'args'                => array(
+                    'attachment_id' => array(
+                        'validate_callback' => function($param, $request, $key) {
+                            return is_numeric( $param );
+                        }
+                    ),
+                ),
+            ),
+        ) );
+
+        register_rest_route( 'arwai/v1', '/annotations/(?P<attachment_id>\d+)/(?P<annotation_id>[^/]+)', array(
+            array(
+                'methods'             => WP_REST_Server::EDITABLE, // PUT or PATCH
+                'callback'            => array( $this, 'rest_anno_update' ),
+                'permission_callback' => function () {
+                    return current_user_can( 'edit_posts' );
+                },
+                'args'                => array(
+                    'attachment_id' => array(
+                        'validate_callback' => function($param, $request, $key) {
+                            return is_numeric( $param );
+                        }
+                    ),
+                ),
+            ),
+            array(
+                'methods'             => WP_REST_Server::DELETABLE, // DELETE
+                'callback'            => array( $this, 'rest_anno_delete' ),
+                'permission_callback' => function () {
+                    return current_user_can( 'edit_posts' );
+                },
+                'args'                => array(
+                    'attachment_id' => array(
+                        'validate_callback' => function($param, $request, $key) {
+                            return is_numeric( $param );
+                        }
+                    ),
+                ),
+            ),
+        ) );
     }
 
     public function settings_init() {
@@ -323,7 +387,7 @@ public function load_public_scripts() {
                         'drawOnSingleClick' => rest_sanitize_boolean(get_option(self::OPTION_ANNO_DRAW_ON_SINGLE_CLICK, false)),
                         'linkTaxonomy' => $linked_taxonomy,
                         'addTermNonce' => wp_create_nonce( 'arwai_add_term_nonce' ),
-                        'annoNonce'    => wp_create_nonce( 'arwai_anno_nonce' ),
+                        'annoNonce'    => wp_create_nonce( 'wp_rest' ),
                         'tagVocabulary' => [],
                         'currentUser' => $current_user_data,
                         'tagLinks' => [],
@@ -349,8 +413,7 @@ public function load_public_scripts() {
                         'images'        => $image_sources,
                         'post_id'       => $post_id,
                         'ajax_url'      => admin_url( 'admin-ajax.php' ),
-                        'rest_url'      => rest_url( 'arwai/v1/annotations' ),
-                        'restNonce'     => wp_create_nonce( 'wp_rest' ),
+                        'rest_url'      => esc_url_raw( rest_url() ),
                         'anno_options'  => $anno_options
                     ];
 
@@ -1246,50 +1309,12 @@ public function load_public_scripts() {
         }
     }
 
-    public function register_rest_routes() {
-        register_rest_route( 'arwai/v1', '/annotations', array(
-            array(
-                'methods'  => WP_REST_Server::READABLE,
-                'callback' => array( $this, 'rest_anno_get' ),
-                'permission_callback' => '__return_true'
-            ),
-            array(
-                'methods'  => WP_REST_Server::CREATABLE,
-                'callback' => array( $this, 'rest_anno_add' ),
-                'permission_callback' => function() {
-                    return current_user_can( 'edit_posts' );
-                }
-            ),
-        ) );
-
-        register_rest_route( 'arwai/v1', '/annotations/(?P<id>[^/]+)', array(
-            array(
-                'methods'  => WP_REST_Server::EDITABLE,
-                'callback' => array( $this, 'rest_anno_update' ),
-                'permission_callback' => function() {
-                    return current_user_can( 'edit_posts' );
-                }
-            ),
-            array(
-                'methods'  => WP_REST_Server::DELETABLE,
-                'callback' => array( $this, 'rest_anno_delete' ),
-                'permission_callback' => function() {
-                    return current_user_can( 'edit_posts' );
-                }
-            ),
-        ) );
-    }
-
-    public function rest_anno_get( $request ) {
+    public function rest_anno_get( WP_REST_Request $request ) {
         global $wpdb;
         $attachment_id = $request->get_param( 'attachment_id' );
 
-        if ( empty( $attachment_id ) ) {
-            return new WP_Error( 'missing_attachment_id', 'Missing attachment_id.', array( 'status' => 400 ) );
-        }
-
         $all_annotations = [];
-        $results = $wpdb->get_results( $wpdb->prepare( "SELECT annotation_data FROM {$this->table_name} WHERE attachment_id = %d", intval( $attachment_id ) ), ARRAY_A );
+        $results = $wpdb->get_results( $wpdb->prepare( "SELECT annotation_data FROM {$this->table_name} WHERE attachment_id = %d", $attachment_id ), ARRAY_A );
 
         if ( ! empty( $results ) ) {
             foreach ( $results as $row ) {
@@ -1303,20 +1328,28 @@ public function load_public_scripts() {
         return rest_ensure_response( $all_annotations );
     }
 
-    public function rest_anno_add( $request ) {
+    public function rest_anno_add( WP_REST_Request $request ) {
         global $wpdb;
 
+        $attachment_id = $request->get_param( 'attachment_id' );
         $annotation_json = $request->get_param( 'annotation' );
+        $iiif_source_url = $request->get_param( 'iiif_source_url' ) ? esc_url_raw( $request->get_param( 'iiif_source_url' ) ) : '';
+        $parent_post_id = $request->get_param( 'post_id' ) ? intval( $request->get_param( 'post_id' ) ) : 0;
+
         if ( empty( $annotation_json ) ) {
-            return new WP_Error( 'missing_annotation', 'Annotation data missing.', array( 'status' => 400 ) );
+            return new WP_Error( 'missing_data', 'Annotation data missing.', array( 'status' => 400 ) );
         }
 
-        $annotation = is_string( $annotation_json ) ? json_decode( $annotation_json, true ) : $annotation_json;
-        if ( json_last_error() !== JSON_ERROR_NONE || ! is_array( $annotation ) ) {
-            return new WP_Error( 'invalid_json', 'Invalid JSON data.', array( 'status' => 400 ) );
+        // JS sends JSON payload, sometimes it might be already parsed if it was sent as application/json body
+        if ( is_string( $annotation_json ) ) {
+            $annotation = json_decode( wp_unslash( $annotation_json ), true );
+            if ( json_last_error() !== JSON_ERROR_NONE ) {
+                return new WP_Error( 'invalid_json', 'Invalid JSON data.', array( 'status' => 400 ) );
+            }
+        } else {
+            $annotation = $annotation_json;
         }
 
-        $attachment_id = $request->get_param( 'attachment_id' ) ? intval( $request->get_param( 'attachment_id' ) ) : 0;
         if ( empty( $attachment_id ) ) {
             $image_url = $annotation['target']['source'] ?? '';
             if ( ! empty( $image_url ) ) {
@@ -1339,11 +1372,9 @@ public function load_public_scripts() {
         if ( isset( $annotation['body'] ) && is_array( $annotation['body'] ) ) {
             foreach ( $annotation['body'] as $key => $body_item ) {
                 if ( isset( $body_item['value'] ) && is_string( $body_item['value'] ) ) {
-                    // Skip sanitizing snippets as they are base64 data URLs
                     if ( isset( $body_item['purpose'] ) && $body_item['purpose'] === 'arwai-snippet' ) {
                         continue;
                     }
-                    // Use wp_kses_post for comments/replies and sanitize_text_field for others (like tags)
                     if ( isset( $body_item['purpose'] ) && ( $body_item['purpose'] === 'commenting' || $body_item['purpose'] === 'replying' ) ) {
                         $annotation['body'][$key]['value'] = wp_kses_post( $body_item['value'] );
                     } else {
@@ -1352,9 +1383,6 @@ public function load_public_scripts() {
                 }
             }
         }
-
-        $iiif_source_url = $request->get_param( 'iiif_source_url' ) ? esc_url_raw( $request->get_param( 'iiif_source_url' ) ) : '';
-        $parent_post_id = $request->get_param( 'post_id' ) ? intval( $request->get_param( 'post_id' ) ) : 0;
 
         $inserted = $wpdb->insert(
             $this->table_name,
@@ -1398,77 +1426,37 @@ public function load_public_scripts() {
                 $parent_post_id
             );
 
-            return rest_ensure_response( array( 'annotation' => $annotation ) );
+            $response = rest_ensure_response( array( 'annotation' => $annotation ) );
+            $response->set_status( 201 );
+            return $response;
 
         } else {
-            return new WP_Error( 'db_error', 'Failed to add annotation.', array( 'status' => 500 ) );
+            return new WP_Error( 'db_insert_error', 'Failed to add annotation.', array( 'status' => 500 ) );
         }
     }
 
-    public function rest_anno_delete( $request ) {
+    public function rest_anno_update( WP_REST_Request $request ) {
         global $wpdb;
 
-        $annoid = urldecode( $request->get_param( 'id' ) );
+        $attachment_id = $request->get_param( 'attachment_id' );
+        $annoid = urldecode( $request->get_param( 'annotation_id' ) );
         $annotation_json = $request->get_param( 'annotation' );
+        $iiif_source_url = $request->get_param( 'iiif_source_url' ) ? esc_url_raw( $request->get_param( 'iiif_source_url' ) ) : '';
+        $parent_post_id = $request->get_param( 'post_id' ) ? intval( $request->get_param( 'post_id' ) ) : 0;
 
         if ( empty( $annoid ) || empty( $annotation_json ) ) {
             return new WP_Error( 'missing_data', 'Missing data.', array( 'status' => 400 ) );
         }
 
-        $annotation = is_string( $annotation_json ) ? json_decode( $annotation_json, true ) : $annotation_json;
-        if ( json_last_error() !== JSON_ERROR_NONE || ! is_array( $annotation ) ) {
-            return new WP_Error( 'invalid_json', 'Invalid JSON.', array( 'status' => 400 ) );
-        }
-
-        $attachment_id = $request->get_param( 'attachment_id' ) ? intval( $request->get_param( 'attachment_id' ) ) : 0;
-        if ( empty( $attachment_id ) ) {
-            $image_url = $annotation['target']['source'] ?? '';
-            if ( ! empty( $image_url ) ) {
-                $attachment_id = attachment_url_to_postid( $image_url );
+        if ( is_string( $annotation_json ) ) {
+            $annotation = json_decode( wp_unslash( $annotation_json ), true );
+            if ( json_last_error() !== JSON_ERROR_NONE ) {
+                return new WP_Error( 'invalid_json', 'Invalid JSON.', array( 'status' => 400 ) );
             }
-        }
-
-        if ( empty( $attachment_id ) ) {
-            return new WP_Error( 'missing_attachment_id', 'Could not find attachment ID.', array( 'status' => 400 ) );
-        }
-
-        $existing = $wpdb->get_row( $wpdb->prepare( "SELECT annotation_data FROM {$this->table_name} WHERE annotation_id_from_annotorious = %s AND attachment_id = %d", $annoid, $attachment_id ), ARRAY_A );
-        if ( $existing ) {
-            $parent_post_id = $request->get_param( 'post_id' ) ? intval( $request->get_param( 'post_id' ) ) : 0;
-            $this->log_annotation_action(
-                $attachment_id,
-                'delete',
-                $existing['annotation_data'],
-                $annoid,
-                $parent_post_id
-            );
-        }
-
-        $deleted = $wpdb->delete( $this->table_name, array( 'annotation_id_from_annotorious' => $annoid, 'attachment_id' => $attachment_id ), array( '%s', '%d' ) );
-
-        if ( false !== $deleted && $deleted > 0 ) {
-            return rest_ensure_response( array( 'success' => true ) );
         } else {
-            return new WP_Error( 'delete_failed', 'Failed to delete annotation.', array( 'status' => 500 ) );
-        }
-    }
-
-    public function rest_anno_update( $request ) {
-        global $wpdb;
-
-        $annoid = urldecode( $request->get_param( 'id' ) );
-        $annotation_json = $request->get_param( 'annotation' );
-
-        if ( empty( $annoid ) || empty( $annotation_json ) ) {
-            return new WP_Error( 'missing_data', 'Missing data.', array( 'status' => 400 ) );
+            $annotation = $annotation_json;
         }
 
-        $annotation = is_string( $annotation_json ) ? json_decode( $annotation_json, true ) : $annotation_json;
-        if ( json_last_error() !== JSON_ERROR_NONE || ! is_array( $annotation ) ) {
-            return new WP_Error( 'invalid_json', 'Invalid JSON.', array( 'status' => 400 ) );
-        }
-
-        $attachment_id = $request->get_param( 'attachment_id' ) ? intval( $request->get_param( 'attachment_id' ) ) : 0;
         if ( empty( $attachment_id ) ) {
             $image_url = $annotation['target']['source'] ?? '';
             if ( ! empty( $image_url ) ) {
@@ -1486,11 +1474,9 @@ public function load_public_scripts() {
         if ( isset( $annotation['body'] ) && is_array( $annotation['body'] ) ) {
             foreach ( $annotation['body'] as $key => $body_item ) {
                 if ( isset( $body_item['value'] ) && is_string( $body_item['value'] ) ) {
-                    // Skip sanitizing snippets as they are base64 data URLs
                     if ( isset( $body_item['purpose'] ) && $body_item['purpose'] === 'arwai-snippet' ) {
                         continue;
                     }
-                    // Use wp_kses_post for comments/replies and sanitize_text_field for others (like tags)
                     if ( isset( $body_item['purpose'] ) && ( $body_item['purpose'] === 'commenting' || $body_item['purpose'] === 'replying' ) ) {
                         $annotation['body'][$key]['value'] = wp_kses_post( $body_item['value'] );
                     } else {
@@ -1499,9 +1485,6 @@ public function load_public_scripts() {
                 }
             }
         }
-
-        $iiif_source_url = $request->get_param( 'iiif_source_url' ) ? esc_url_raw( $request->get_param( 'iiif_source_url' ) ) : '';
-        $parent_post_id = $request->get_param( 'post_id' ) ? intval( $request->get_param( 'post_id' ) ) : 0;
 
         $updated = $wpdb->update(
             $this->table_name,
@@ -1523,9 +1506,63 @@ public function load_public_scripts() {
                 $annoid,
                 $parent_post_id
             );
-            return rest_ensure_response( array( 'success' => true ) );
+            return rest_ensure_response( array( 'annotation' => $annotation ) );
         } else {
-            return new WP_Error( 'update_failed', 'Failed to update annotation.', array( 'status' => 500 ) );
+            return new WP_Error( 'db_update_error', 'Failed to update annotation.', array( 'status' => 500 ) );
+        }
+    }
+
+    public function rest_anno_delete( WP_REST_Request $request ) {
+        global $wpdb;
+
+        $attachment_id = $request->get_param( 'attachment_id' );
+        $annoid = urldecode( $request->get_param( 'annotation_id' ) );
+        $annotation_json = $request->get_param( 'annotation' );
+        $parent_post_id = $request->get_param( 'post_id' ) ? intval( $request->get_param( 'post_id' ) ) : 0;
+
+        if ( empty( $annoid ) ) {
+            return new WP_Error( 'missing_data', 'Missing data.', array( 'status' => 400 ) );
+        }
+
+        $annotation = null;
+        if ( ! empty( $annotation_json ) ) {
+            if ( is_string( $annotation_json ) ) {
+                $annotation = json_decode( wp_unslash( $annotation_json ), true );
+            } else {
+                $annotation = $annotation_json;
+            }
+        }
+
+        if ( empty( $attachment_id ) && $annotation ) {
+            $image_url = $annotation['target']['source'] ?? '';
+            if ( ! empty( $image_url ) ) {
+                $attachment_id = attachment_url_to_postid( $image_url );
+            }
+        }
+
+        if ( empty( $attachment_id ) ) {
+            return new WP_Error( 'missing_attachment_id', 'Could not find attachment ID.', array( 'status' => 400 ) );
+        }
+
+        $existing = $wpdb->get_row( $wpdb->prepare( "SELECT annotation_data FROM {$this->table_name} WHERE annotation_id_from_annotorious = %s AND attachment_id = %d", $annoid, $attachment_id ), ARRAY_A );
+        if ( $existing ) {
+            $this->log_annotation_action(
+                $attachment_id,
+                'delete',
+                $existing['annotation_data'],
+                $annoid,
+                $parent_post_id
+            );
+        }
+
+        $deleted = $wpdb->delete( $this->table_name, array( 'annotation_id_from_annotorious' => $annoid, 'attachment_id' => $attachment_id ), array( '%s', '%d' ) );
+
+        if ( false !== $deleted ) {
+            $response = rest_ensure_response( null );
+            $response->set_status( 204 ); // No content on successful delete
+            return $response;
+        } else {
+            return new WP_Error( 'db_delete_error', 'Failed to delete annotation.', array( 'status' => 500 ) );
         }
     }
 
