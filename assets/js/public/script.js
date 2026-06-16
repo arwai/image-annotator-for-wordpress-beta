@@ -138,7 +138,7 @@ jQuery(document).ready(function($) {
     }
 
     // --- 1. GLOBAL VARIABLES & SELECTORS ---
-    const { containerId, images, post_id, ajax_url, anno_options } = Arwai_Annotator_Data;
+    const { containerId, images, post_id, ajax_url, rest_url, restNonce, anno_options } = Arwai_Annotator_Data;
     const container = $('#' + containerId);
     if (!container.length || images.length === 0) return;
 
@@ -356,17 +356,15 @@ jQuery(document).ready(function($) {
             return;
         }
 
-        $.ajax({
-            url: ajax_url,
-            data: { action: 'arwai_anno_get', attachment_id: attachmentId },
-            dataType: 'json',
-            success: function(annotations) {
+        fetch(rest_url + '?attachment_id=' + attachmentId)
+            .then(response => response.json())
+            .then(annotations => {
                 if (Array.isArray(annotations)) {
                     window.arwaiAnnotationCache[attachmentId] = annotations;
                     annoInstance.setAnnotations(annotations);
                 }
-            }
-        });
+            })
+            .catch(error => console.error('Error fetching annotations:', error));
     }
 
     /**
@@ -405,6 +403,13 @@ jQuery(document).ready(function($) {
     }
 
 
+    const escapeHTML = (str) => {
+        if (!str) return '';
+        const div = document.createElement('div');
+        div.appendChild(document.createTextNode(str));
+        return div.innerHTML;
+    };
+
     // ### SINGLE ANNOTATION DISPLAY ###
     function updateSingleAnnotationDisplay(annotation) {
         if (!singleAnnotationContainer.length) return;
@@ -423,9 +428,10 @@ jQuery(document).ready(function($) {
         
         const tagLinks = anno_options.tagLinks || {};
         const tagsHtml = tagBodies.map(body => {
-            const tagName = body.value;
-            return tagLinks[tagName] 
-                ? `<button class="arwai-anno-single-tag arwai-tag"><a href="${tagLinks[tagName]}" class="arwai-anno-single-tag-link">${tagName}</a></button>` 
+            const rawTagName = body.value;
+            const tagName = escapeHTML(rawTagName);
+            return tagLinks[rawTagName]
+                ? `<button class="arwai-anno-single-tag arwai-tag"><a href="${escapeHTML(tagLinks[rawTagName])}" class="arwai-anno-single-tag-link">${tagName}</a></button>`
                 : `<span class="arwai-anno-single-tag arwai-tag">${tagName}</span>`;
         }).join(' ');
 
@@ -435,18 +441,18 @@ jQuery(document).ready(function($) {
             commentsHtml = '<ul class="arwai-anno-single-comments">'; // Add target class
             commentBodies.forEach(body => {
                 const creator = body.creator || annotation.creator;
-                const creatorName = creator ? (creator.name || creator.displayName) : 'Unknown';
+                const creatorName = escapeHTML(creator ? (creator.name || creator.displayName) : 'Unknown');
                 const dateValue = body.created || annotation.created;
 
               let createdDate = ''; // Default to empty
 
                 if (dateValue) {
-                    const timeAgoString = formatTimeAgo(dateValue);
-                    const isoDate = new Date(dateValue).toISOString();
+                    const timeAgoString = escapeHTML(formatTimeAgo(dateValue));
+                    const isoDate = escapeHTML(new Date(dateValue).toISOString());
                     createdDate = `<time class="timeago" datetime="${isoDate}">${timeAgoString}</time>`;
                 }
 
-                const commentText = body.value || '<em>Empty comment</em>';
+                const commentText = escapeHTML(body.value || 'Empty comment');
                 commentsHtml += `
                 <li class="arwai-anno-single-comment-item">
                     <p>${commentText}</p>
@@ -460,10 +466,10 @@ jQuery(document).ready(function($) {
         }
 
         const newHtml = `
-            <li data-id="${annotationId}">
+            <li data-id="${escapeHTML(annotationId)}">
                 <div class="arwai-anno-single-item">
                     <div class="arwai-anno-single-header">
-                        <span> ${annotationId}</span>
+                        <span> ${escapeHTML(annotationId)}</span>
                     </div>
                     <div>
                         <div class="arwai-anno-single-body">${commentsHtml}</div>
@@ -535,26 +541,40 @@ jQuery(document).ready(function($) {
 
         if (action === 'create' || action === 'update') {
             const isOsd = (annoInstance === osdAnno);
-            const ajaxAction = (action === 'create') ? 'arwai_anno_add' : 'arwai_anno_update';
 
             const sendRequest = (annot) => {
-                const postData = {
-                    action: ajaxAction,
+                const payload = {
                     annotation: JSON.stringify(annot),
                     attachment_id: attachmentId,
-                    nonce: anno_options.annoNonce,
                     iiif_source_url: iiifSourceUrl,
                     post_id: post_id
                 };
-                if (action === 'update') postData.annotationid = annot.id;
 
-                $.post(ajax_url, postData).done(response => {
-                    if (action === 'create' && response.success && response.data.annotation) {
+                let fetchUrl = rest_url;
+                let fetchMethod = 'POST';
+
+                if (action === 'update') {
+                    fetchUrl = rest_url + '/' + encodeURIComponent(annot.id);
+                    fetchMethod = 'PUT';
+                }
+
+                fetch(fetchUrl, {
+                    method: fetchMethod,
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-WP-Nonce': restNonce
+                    },
+                    body: JSON.stringify(payload)
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (action === 'create' && data && data.annotation) {
                         annoInstance.removeAnnotation(annot);
-                        annoInstance.addAnnotation(response.data.annotation);
+                        annoInstance.addAnnotation(data.annotation);
                     }
                     syncCache();
-                });
+                })
+                .catch(error => console.error('Error saving annotation:', error));
             };
 
             if (isOsd) {
@@ -575,14 +595,25 @@ jQuery(document).ready(function($) {
                 sendRequest(annotation);
             }
         } else if (action === 'delete') {
-            $.post(ajax_url, {
-                action: 'arwai_anno_delete',
-                annotation: JSON.stringify(annotation),
-                annotationid: annotation.id,
-                nonce: anno_options.annoNonce
-            }).done(() => {
-                syncCache();
-            });
+            fetch(rest_url + '/' + encodeURIComponent(annotation.id), {
+                method: 'DELETE',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-WP-Nonce': restNonce
+                },
+                body: JSON.stringify({
+                    annotation: JSON.stringify(annotation),
+                    attachment_id: attachmentId
+                })
+            })
+            .then(response => {
+                if (response.ok) {
+                    syncCache();
+                } else {
+                    console.error('Error deleting annotation');
+                }
+            })
+            .catch(error => console.error('Error deleting annotation:', error));
         }
     }
 
