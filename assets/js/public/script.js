@@ -138,7 +138,7 @@ jQuery(document).ready(function($) {
     }
 
     // --- 1. GLOBAL VARIABLES & SELECTORS ---
-    const { containerId, images, post_id, ajax_url, anno_options } = Arwai_Annotator_Data;
+    const { containerId, images, post_id, ajax_url, rest_url, restNonce, anno_options } = Arwai_Annotator_Data;
     const container = $('#' + containerId);
     if (!container.length || images.length === 0) return;
 
@@ -404,6 +404,13 @@ jQuery(document).ready(function($) {
     }
 
 
+    const escapeHTML = (str) => {
+        if (!str) return '';
+        const div = document.createElement('div');
+        div.appendChild(document.createTextNode(str));
+        return div.innerHTML;
+    };
+
     // ### SINGLE ANNOTATION DISPLAY ###
     function updateSingleAnnotationDisplay(annotation) {
         if (!singleAnnotationContainer.length) return;
@@ -422,9 +429,10 @@ jQuery(document).ready(function($) {
         
         const tagLinks = anno_options.tagLinks || {};
         const tagsHtml = tagBodies.map(body => {
-            const tagName = body.value;
-            return tagLinks[tagName] 
-                ? `<button class="arwai-anno-single-tag arwai-tag"><a href="${tagLinks[tagName]}" class="arwai-anno-single-tag-link">${tagName}</a></button>` 
+            const rawTagName = body.value;
+            const tagName = escapeHTML(rawTagName);
+            return tagLinks[rawTagName]
+                ? `<button class="arwai-anno-single-tag arwai-tag"><a href="${escapeHTML(tagLinks[rawTagName])}" class="arwai-anno-single-tag-link">${tagName}</a></button>`
                 : `<span class="arwai-anno-single-tag arwai-tag">${tagName}</span>`;
         }).join(' ');
 
@@ -434,18 +442,18 @@ jQuery(document).ready(function($) {
             commentsHtml = '<ul class="arwai-anno-single-comments">'; // Add target class
             commentBodies.forEach(body => {
                 const creator = body.creator || annotation.creator;
-                const creatorName = creator ? (creator.name || creator.displayName) : 'Unknown';
+                const creatorName = escapeHTML(creator ? (creator.name || creator.displayName) : 'Unknown');
                 const dateValue = body.created || annotation.created;
 
               let createdDate = ''; // Default to empty
 
                 if (dateValue) {
-                    const timeAgoString = formatTimeAgo(dateValue);
-                    const isoDate = new Date(dateValue).toISOString();
+                    const timeAgoString = escapeHTML(formatTimeAgo(dateValue));
+                    const isoDate = escapeHTML(new Date(dateValue).toISOString());
                     createdDate = `<time class="timeago" datetime="${isoDate}">${timeAgoString}</time>`;
                 }
 
-                const commentText = body.value || '<em>Empty comment</em>';
+                const commentText = escapeHTML(body.value || 'Empty comment');
                 commentsHtml += `
                 <li class="arwai-anno-single-comment-item">
                     <p>${commentText}</p>
@@ -459,10 +467,10 @@ jQuery(document).ready(function($) {
         }
 
         const newHtml = `
-            <li data-id="${annotationId}">
+            <li data-id="${escapeHTML(annotationId)}">
                 <div class="arwai-anno-single-item">
                     <div class="arwai-anno-single-header">
-                        <span> ${annotationId}</span>
+                        <span> ${escapeHTML(annotationId)}</span>
                     </div>
                     <div>
                         <div class="arwai-anno-single-body">${commentsHtml}</div>

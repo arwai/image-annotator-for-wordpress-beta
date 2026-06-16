@@ -61,6 +61,9 @@ class Image_Annotator_for_WordPress {
         add_action( 'wp_ajax_arwai_add_taxonomy_term', array( $this, 'arwai_add_taxonomy_term' ) );
         add_action( 'wp_ajax_arwai_sideload_iiif', array( $this, 'arwai_sideload_iiif' ) );
 
+        // REST API endpoints
+        add_action( 'rest_api_init', array( $this, 'register_rest_routes' ) );
+
     }
 
 
@@ -1277,7 +1280,7 @@ public function load_public_scripts() {
         }
         check_ajax_referer( 'arwai_add_term_nonce', 'nonce' );
 
-        $taxonomy = isset($_POST['taxonomy']) ? sanitize_text_field($_POST['taxonomy']) : '';
+        $taxonomy = isset($_POST['taxonomy']) ? sanitize_key($_POST['taxonomy']) : '';
         $term = isset($_POST['term']) ? sanitize_text_field($_POST['term']) : '';
 
         if ( empty($taxonomy) || empty($term) ) {
