@@ -1372,9 +1372,6 @@ public function load_public_scripts() {
         if ( isset( $annotation['body'] ) && is_array( $annotation['body'] ) ) {
             foreach ( $annotation['body'] as $key => $body_item ) {
                 if ( isset( $body_item['value'] ) && is_string( $body_item['value'] ) ) {
-                    if ( isset( $body_item['purpose'] ) && $body_item['purpose'] === 'arwai-snippet' ) {
-                        continue;
-                    }
                     if ( isset( $body_item['purpose'] ) && ( $body_item['purpose'] === 'commenting' || $body_item['purpose'] === 'replying' ) ) {
                         $annotation['body'][$key]['value'] = wp_kses_post( $body_item['value'] );
                     } else {
@@ -1474,9 +1471,6 @@ public function load_public_scripts() {
         if ( isset( $annotation['body'] ) && is_array( $annotation['body'] ) ) {
             foreach ( $annotation['body'] as $key => $body_item ) {
                 if ( isset( $body_item['value'] ) && is_string( $body_item['value'] ) ) {
-                    if ( isset( $body_item['purpose'] ) && $body_item['purpose'] === 'arwai-snippet' ) {
-                        continue;
-                    }
                     if ( isset( $body_item['purpose'] ) && ( $body_item['purpose'] === 'commenting' || $body_item['purpose'] === 'replying' ) ) {
                         $annotation['body'][$key]['value'] = wp_kses_post( $body_item['value'] );
                     } else {
