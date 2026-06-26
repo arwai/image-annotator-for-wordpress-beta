@@ -360,15 +360,15 @@ public function load_public_scripts() {
                 if (!empty($image_sources)) {
                     // Enqueue viewer styles
                     wp_enqueue_style( 'arwai-annotorious-css', ARWAI_IMAGE_ANNOTATOR_URL . 'assets/css/annotorious/annotorious.min.css');
-                    wp_enqueue_style( 'arwai-slick-css', ARWAI_IMAGE_ANNOTATOR_URL . 'assets/css/slick/slick.css' );
+                    wp_enqueue_style( 'swiper-css', 'https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.css', array(), null );
 
                     // Enqueue viewer scripts
                     wp_enqueue_script( 'arwai-openseadragon-js', ARWAI_IMAGE_ANNOTATOR_URL . 'assets/js/openseadragon/openseadragon.min.js', array('jquery'), null, true );
                     wp_enqueue_script( 'arwai-annotorious-js', ARWAI_IMAGE_ANNOTATOR_URL . 'assets/js/annotorious/annotorious.min.js', array('jquery'), null, true );
                     wp_enqueue_script( 'arwai-annotorious-osd-plugin-js', ARWAI_IMAGE_ANNOTATOR_URL . 'assets/js/annotorious/openseadragon-annotorious.min.js', array( 'arwai-openseadragon-js', 'arwai-annotorious-js' ), null, true );
-                    wp_enqueue_script( 'arwai-public-js', ARWAI_IMAGE_ANNOTATOR_URL . 'assets/js/public/script.js', array('jquery', 'arwai-annotorious-osd-plugin-js'), null, true);
+                    wp_enqueue_script( 'swiper-js', 'https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.js', array(), null, true );
+                    wp_enqueue_script( 'arwai-public-js', ARWAI_IMAGE_ANNOTATOR_URL . 'assets/js/public/script.js', array('arwai-annotorious-osd-plugin-js', 'swiper-js'), null, true);
                     wp_enqueue_script( 'feather-icons-js', 'https://cdn.jsdelivr.net/npm/feather-icons/dist/feather.min.js', array(), null, true);
-                    wp_enqueue_script( 'slick-js', ARWAI_IMAGE_ANNOTATOR_URL . 'assets/js/slick/slick.min.js', array('jquery'), null, true );
 
                     // Get viewer options and localize script data...
                     $linked_taxonomy = get_option(self::OPTION_ANNO_TAGS_LINK_TAXONOMY, 'none');
@@ -482,13 +482,13 @@ public function load_public_scripts() {
                     'data-attachment-id' => $id,
                     'loading'          => 'lazy'
                 ));
-                $slides_html .= "<div><div class='arwai-slick-slide-wrapper'>" . $medium_image_html . "</div></div>";
+                $slides_html .= "<div class='swiper-slide'><div class='swiper-zoom-container'>" . $medium_image_html . "</div></div>";
             }
 
                 $thumbnails_html = '';
                 foreach ($image_ids as $index => $id) {
                     $thumb_url = wp_get_attachment_image_url($id, 'thumbnail');
-                    $thumbnails_html .= "<img src='" . esc_url($thumb_url) . "' class='arwai-simple-thumb' data-index='" . esc_attr($index) . "'>";
+                    $thumbnails_html .= "<div class='swiper-slide'><img src='" . esc_url($thumb_url) . "' class='arwai-simple-thumb' data-index='" . esc_attr($index) . "'></div>";
                 }
                 $viewer_html = "
                 <div class='arwai-simple-viewer'>
@@ -500,24 +500,26 @@ public function load_public_scripts() {
 
                                 <div id='arwai-simple-viewer-main'>
 
-                                    <div class='arwai-slick-slider'>
-                                        " . $slides_html . "
+                                    <div class='swiper arwai-main-swiper'>
+                                        <div class='swiper-wrapper'>
+                                            " . $slides_html . "
+                                        </div>
                                     </div>
                                     
                                     <div class='arwai-simple-viewer-nav'>
-                                        <button class='arwai-simple-prev'><span data-feather='arrow-left'></span></button>
+                                        <div class='swiper-button-prev'></div>
                                         <span class='arwai-simple-counter'><span class='arwai-simple-current-index'>1</span> / " . count($image_ids) . "</span>
-                                        <button class='arwai-simple-next'><span data-feather='arrow-right'></span></button>
+                                        <div class='swiper-button-next'></div>
                                     </div>
 
                                 </div>
 
-                                <div class='arwai-simple-viewer-strip-container'>
-                                    <button class='arwai-simple-strip-scroll-left'><span data-feather='chevron-left'></span></button>
-                                        <div id='arwai-simple-viewer-reference-strip'>
-                                            " . $thumbnails_html . "
-                                        </div>
-                                    <button class='arwai-simple-strip-scroll-right'><span data-feather='chevron-right'></span></button>
+                                <div class='swiper arwai-thumb-swiper'>
+                                    <div class='swiper-wrapper'>
+                                        " . $thumbnails_html . "
+                                    </div>
+                                    <div class='swiper-button-prev'></div>
+                                    <div class='swiper-button-next'></div>
                                 </div>
 
                             </div>

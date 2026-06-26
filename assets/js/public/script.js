@@ -129,7 +129,7 @@ function formatTimeAgo(dateString) {
 }
 
 
-jQuery(document).ready(function($) {
+document.addEventListener('DOMContentLoaded', function() {
     console.log('Document ready. Starting viewer initialization.');
 
     if (typeof Arwai_Annotator_Data === 'undefined') {
@@ -139,61 +139,55 @@ jQuery(document).ready(function($) {
 
     // --- 1. GLOBAL VARIABLES & SELECTORS ---
     const { containerId, images, post_id, ajax_url, rest_url, restNonce, anno_options } = Arwai_Annotator_Data;
-    const container = $('#' + containerId);
-    if (!container.length || images.length === 0) return;
+    const container = document.getElementById(containerId);
+    if (!container || images.length === 0) return;
 
     // Simple Viewer elements
-    const prevButton = container.find('.arwai-simple-prev');
-    const nextButton = container.find('.arwai-simple-next');
-    const thumbnails = container.find('.arwai-simple-thumb');
-    const currentIndexSpan = container.find('.arwai-simple-current-index');
-    const strip = container.find('#arwai-simple-viewer-reference-strip');
-    const scrollLeftButton = container.find('.arwai-simple-strip-scroll-left');
-    const scrollRightButton = container.find('.arwai-simple-strip-scroll-right');
-    const slideNav = container.find('.arwai-simple-viewer-nav');
+    const currentIndexSpan = container.querySelector('.arwai-simple-current-index');
+    const slideNav = container.querySelector('.arwai-simple-viewer-nav');
 
-    const slickSlider = container.find('.arwai-slick-slider'); // selector for Slick
+    const mainSwiperEl = container.querySelector('.arwai-main-swiper');
+    const thumbSwiperEl = container.querySelector('.arwai-thumb-swiper');
+
+    let mainSwiperInstance = null;
+    let thumbSwiperInstance = null;
     let mainImage; // This will be redefined on slide change
     
     // Shared / OSD elements
-    const toggleButton = $('#arwai-toggle-annotations');
-    const launchOsdButton = $('#arwai-launch-osd');
-    const osdModal = $('#arwai-osd-modal');
-    const osdCloseButton = $('#arwai-osd-close');
-    const osdToggleButton = $('#arwai-toggle-annotations-osd'); 
+    const toggleButtons = document.querySelectorAll('#arwai-toggle-annotations, #arwai-toggle-annotations-osd');
+    const launchOsdButton = document.getElementById('arwai-launch-osd');
+    const osdModal = document.getElementById('arwai-osd-modal');
+    const osdCloseButton = document.getElementById('arwai-osd-close');
 
     // History elements
-    const historyButton = $('#arwai-history');
-    const historySidebar = $('#arwai-history-sidebar');
-    const historyCloseBtn = $('#arwai-close-history');
-    const historyFeedContent = $('#arwai-history-feed-content');
+    const historyButton = document.getElementById('arwai-history');
+    const historySidebar = document.getElementById('arwai-history-sidebar');
+    const historyCloseBtn = document.getElementById('arwai-close-history');
+    const historyFeedContent = document.getElementById('arwai-history-feed-content');
 
     // Move sidebar to body to avoid flex/overflow clipping
-    if (historySidebar.length) {
-        historySidebar.appendTo('body');
+    if (historySidebar) {
+        document.body.appendChild(historySidebar);
         // Override absolute positioning to fixed since it's now on body
-        historySidebar.css({
-            'position': 'fixed',
-            'right': '0',
-            'z-index': '999999'
-        });
+        historySidebar.style.position = 'fixed';
+        historySidebar.style.right = '0';
+        historySidebar.style.zIndex = '999999';
     }
 
     function updateSidebarPosition() {
-        if (!historyVisible || !historySidebar.length || !container.length) return;
-        const viewerRect = container[0].getBoundingClientRect();
-        historySidebar.css({
-            'top': viewerRect.top + 'px',
-            'height': viewerRect.height + 'px'
-        });
+        if (!historyVisible || !historySidebar || !container) return;
+        const viewerRect = container.getBoundingClientRect();
+        historySidebar.style.top = viewerRect.top + 'px';
+        historySidebar.style.height = viewerRect.height + 'px';
     }
 
-    $(window).on('scroll resize', updateSidebarPosition);
+    window.addEventListener('scroll', updateSidebarPosition);
+    window.addEventListener('resize', updateSidebarPosition);
 
 
     // --- SELECTORS FOR THE SINGLE ANNOTATION DISPLAY ---
-    const singleAnnotationContainer = $('#arwai-single-annotation-container');
-    const singleAnnotationList = $('#arwai-single-annotation');
+    const singleAnnotationContainer = document.getElementById('arwai-single-annotation-container');
+    const singleAnnotationList = document.getElementById('arwai-single-annotation');
 
 
     // --- 2. STATE MANAGEMENT ---
@@ -256,14 +250,13 @@ jQuery(document).ready(function($) {
 
             historyContainer.innerHTML = '<div style="text-align:center;">Loading...</div>';
 
-            $.ajax({
-                url: ajax_url,
-                method: 'GET',
-                data: {
-                    action: 'arwai_get_annotorious_history',
-                    annotation_id: annotationId
-                },
-                success: function(response) {
+            const url = new URL(ajax_url);
+            url.searchParams.append('action', 'arwai_get_annotorious_history');
+            url.searchParams.append('annotation_id', annotationId);
+
+            fetch(url)
+                .then(res => res.json())
+                .then(response => {
                     if (response.success && response.data.history && response.data.history.length > 0) {
                         let html = '';
 
@@ -284,11 +277,10 @@ jQuery(document).ready(function($) {
                     } else {
                         historyContainer.innerHTML = '<div style="color:#888;">No history found.</div>';
                     }
-                },
-                error: function() {
+                })
+                .catch(() => {
                     historyContainer.innerHTML = '<div style="color:red;">Error loading history.</div>';
-                }
-            });
+                });
         });
 
         container.appendChild(button);
@@ -303,15 +295,15 @@ jQuery(document).ready(function($) {
 
     // --- 3. SHARED & HELPER FUNCTIONS ---
 
-    // --- RESPONSIVE IMAGE LOADER FOR SLICK ---
+    // --- RESPONSIVE IMAGE LOADER FOR SWIPER ---
     function handleResponsiveSliderImages() {
-        if (window.innerWidth > 767) {
-            slickSlider.find('img[data-large-src]').each(function() {
-                const $image = $(this);
-                const largeSrc = $image.data('large-src');
-                const currentSrc = $image.attr('src');
+        if (window.innerWidth > 767 && mainSwiperEl) {
+            const images = mainSwiperEl.querySelectorAll('img[data-large-src]');
+            images.forEach(img => {
+                const largeSrc = img.getAttribute('data-large-src');
+                const currentSrc = img.getAttribute('src');
                 if (largeSrc && largeSrc !== currentSrc) {
-                    $image.attr('src', largeSrc);
+                    img.setAttribute('src', largeSrc);
                 }
             });
         }
@@ -321,14 +313,14 @@ jQuery(document).ready(function($) {
     handleResponsiveSliderImages();
 
     // Re-run the function when the window is resized to handle orientation changes or browser resizing.
-    $(window).on('resize', handleResponsiveSliderImages);
+    window.addEventListener('resize', handleResponsiveSliderImages);
 
     /**
      * Requirement 5: Responsive Window Resizing
      * Triggers forced recalculation of annotations on window resize.
      */
     let resizeTimeout;
-    $(window).on('resize', function() {
+    window.addEventListener('resize', function() {
         clearTimeout(resizeTimeout);
         resizeTimeout = setTimeout(function() {
             // Check if Simple Viewer is active and notes are visible
@@ -377,11 +369,11 @@ jQuery(document).ready(function($) {
 
     // ### SINGLE ANNOTATION DISPLAY ###
     function updateSingleAnnotationDisplay(annotation) {
-        if (!singleAnnotationContainer.length) return;
+        if (!singleAnnotationContainer) return;
 
         if (!annotation) {
-            singleAnnotationContainer.hide();
-            singleAnnotationList.empty();
+            singleAnnotationContainer.style.display = 'none';
+            singleAnnotationList.innerHTML = '';
             return;
         }
 
@@ -453,30 +445,31 @@ jQuery(document).ready(function($) {
                 </div>  
         `;
         
-        singleAnnotationList.html(newHtml);
+        singleAnnotationList.innerHTML = newHtml;
 
         if (typeof feather !== 'undefined') {
             feather.replace();
         }
 
         const style = arwaiStyleFormatter(annotation);
-        singleAnnotationContainer.removeClass(function(index, className) {
-            return (className.match(/\bis-[^\s]+/g) || []).join(' ');
+        Array.from(singleAnnotationContainer.classList).forEach(className => {
+            if (className.startsWith('is-')) {
+                singleAnnotationContainer.classList.remove(className);
+            }
         });
 
         if (style && style.className) {
             const idBody = annotation.body.find(b => b.purpose === 'arwai-AnnotationID');
             if (idBody) {
-                // Corrected line:
-                const specificListItem = singleAnnotationList.find(`li[data-id="${idBody.value}"]`);
-                singleAnnotationContainer.addClass('is-' + style.className);
-                if (specificListItem.length) { // Check if the item was found before adding a class
-                    specificListItem.addClass('is-' + style.className);
+                const specificListItem = singleAnnotationList.querySelector(`li[data-id="${idBody.value}"]`);
+                singleAnnotationContainer.classList.add('is-' + style.className);
+                if (specificListItem) {
+                    specificListItem.classList.add('is-' + style.className);
                 }
             }
         }
         
-        singleAnnotationContainer.show();
+        singleAnnotationContainer.style.display = 'block';
     }
 
 
@@ -594,7 +587,7 @@ jQuery(document).ready(function($) {
 
         annoInstance.on('cancelSelected', function() {
             highlightedAnnotation = null;
-            if (singleAnnotationContainer.length) singleAnnotationContainer.hide();
+            if (singleAnnotationContainer) singleAnnotationContainer.style.display = 'none';
 
             if (historyVisible) {
                 clearHistorySidebar();
@@ -613,65 +606,69 @@ jQuery(document).ready(function($) {
         });
     }
 
-    $(document).off('click', '#arwai-close-single-annotation').on('click', '#arwai-close-single-annotation', function() {
-        const activeAnno = osdViewer ? osdAnno : simpleAnno;
+    document.addEventListener('click', function(e) {
+        if (e.target.closest('#arwai-close-single-annotation')) {
+            const activeAnno = osdViewer ? osdAnno : simpleAnno;
 
-        if (activeAnno?.cancelSelected) {
-            activeAnno.cancelSelected();
+            if (activeAnno?.cancelSelected) {
+                activeAnno.cancelSelected();
+            }
+            // Optional: hide the container manually
+            if (singleAnnotationContainer) singleAnnotationContainer.style.display = 'none';
+            if (singleAnnotationList) singleAnnotationList.innerHTML = '';
         }
-        // Optional: hide the container manually
-        singleAnnotationContainer.hide();
-        singleAnnotationList.empty();
     });
 
         // ---  Nav button Popup LOGIC ---
 
-        // Select the elements using jQuery selectors
-    const infoButton = $('#arwai-information');
-    const infoPopup = $('#info-popup');
-    const closeButton = $('#close-info-popup');
+    const infoButton = document.getElementById('arwai-information');
+    const infoPopup = document.getElementById('info-popup');
+    const closeButton = document.getElementById('close-info-popup');
 
-    // Show the popup when the info button is clicked
-    infoButton.on('click', function() {
-        infoPopup.css('display', 'flex'); // Use .css() to set display to flex
-    });
+    if (infoButton && infoPopup) {
+        infoButton.addEventListener('click', function() {
+            infoPopup.style.display = 'flex';
+        });
+    }
 
-    // Hide the popup when the close button is clicked
-    closeButton.on('click', function() {
-        infoPopup.hide();
-    });
+    if (closeButton && infoPopup) {
+        closeButton.addEventListener('click', function() {
+            infoPopup.style.display = 'none';
+        });
+    }
 
-    // Optional: Hide the popup when clicking on the background
-    infoPopup.on('click', function(event) {
-        // If the click target is the popup container itself (the background)
-        if (event.target === this) {
-            $(this).hide();
-        }
-    });
+    if (infoPopup) {
+        infoPopup.addEventListener('click', function(event) {
+            if (event.target === this) {
+                this.style.display = 'none';
+            }
+        });
+    }
 
     //popup 2
-           // Select the elements using jQuery selectors
-    const infoButton2 = $('#arwai-history');
-    const infoPopup2 = $('#info-popup-2');
-    const closeButton2 = $('#close-info-popup-2');
+    const infoButton2 = document.getElementById('arwai-history-info'); // Use different id if arwai-history is already used
+    const infoPopup2 = document.getElementById('info-popup-2');
+    const closeButton2 = document.getElementById('close-info-popup-2');
 
-    // Show the popup when the info button is clicked
-    infoButton2.on('click', function() {
-        infoPopup2.css('display', 'flex'); // Use .css() to set display to flex
-    });
+    if (infoButton2 && infoPopup2) {
+        infoButton2.addEventListener('click', function() {
+            infoPopup2.style.display = 'flex';
+        });
+    }
 
-    // Hide the popup when the close button is clicked
-    closeButton2.on('click', function() {
-        infoPopup2.hide();
-    });
+    if (closeButton2 && infoPopup2) {
+        closeButton2.addEventListener('click', function() {
+            infoPopup2.style.display = 'none';
+        });
+    }
 
-    // Optional: Hide the popup when clicking on the background
-    infoPopup2.on('click', function(event) {
-        // If the click target is the popup container itself (the background)
-        if (event.target === this) {
-            $(this).hide();
-        }
-    });
+    if (infoPopup2) {
+        infoPopup2.addEventListener('click', function(event) {
+            if (event.target === this) {
+                this.style.display = 'none';
+            }
+        });
+    }
     
     
     // --- 4. SIMPLE VIEWER LOGIC ---
@@ -687,13 +684,17 @@ jQuery(document).ready(function($) {
         }
 
         function poll() {
-            if (slickSlider.hasClass('slick-initialized')) {
-                mainImage = slickSlider.find('.slick-current:not(.slick-cloned) img');
-            } else {
-                mainImage = slickSlider.find('img').first();
+            let img = null;
+            if (mainSwiperInstance && !mainSwiperInstance.destroyed) {
+                const activeSlide = mainSwiperInstance.slides[mainSwiperInstance.activeIndex];
+                if (activeSlide) {
+                    img = activeSlide.querySelector('img');
+                }
+            } else if (mainSwiperEl) {
+                img = mainSwiperEl.querySelector('img');
             }
 
-            const img = mainImage[0];
+            mainImage = img;
 
             if (img && img.complete && img.naturalWidth > 0 && img.clientWidth > 0 && img.clientHeight > 0) {
                 const annoConfig = {
@@ -846,21 +847,12 @@ jQuery(document).ready(function($) {
 
     // --- 6. EVENT BINDING & INITIALIZATION ---
     function updateView(index) {
-        if (singleAnnotationContainer.length) singleAnnotationContainer.hide();
+        if (singleAnnotationContainer) singleAnnotationContainer.style.display = 'none';
         if (index < 0 || index >= images.length) return;
-        if (images.length > 1) {
-            slickSlider.slick('slickGoTo', index);
+        if (images.length > 1 && mainSwiperInstance) {
+            mainSwiperInstance.slideTo(index);
         }
     }
-
-    function updateArrowVisibility() {
-        if (!strip.length || !scrollLeftButton.length || !scrollRightButton.length) return;
-        const canScroll = strip[0].scrollWidth > strip[0].clientWidth;
-        scrollLeftButton.toggle(canScroll);
-        scrollRightButton.toggle(canScroll);
-    }
-
-    
 
     // --- Main Initialization Logic ---
     // Check the number of images to decide which mode to use.
@@ -874,60 +866,61 @@ jQuery(document).ready(function($) {
                 initialSlideIndex = foundIndex;
             }
         }
-        slickSlider.slick({
-            dots: false,
-            arrows: false,
-            infinite: true,
-            speed: 150,
-            cssEase: 'linear',
-            slidesToShow: 1,
-            adaptiveHeight: true,
-            swipeToSlide: true,
-            touchThreshold: 10,
-            initialSlide: initialSlideIndex
+
+        thumbSwiperInstance = new Swiper(thumbSwiperEl, {
+            spaceBetween: 10,
+            slidesPerView: 'auto',
+            freeMode: true,
+            watchSlidesProgress: true,
+            navigation: {
+                nextEl: thumbSwiperEl.querySelector('.swiper-button-next'),
+                prevEl: thumbSwiperEl.querySelector('.swiper-button-prev'),
+            },
         });
-        slickSlider.on('afterChange', function(event, slick, newIndex) {
-            currentIndex = newIndex;
-            currentIndexSpan.text(currentIndex + 1);
-            thumbnails.removeClass('active').eq(currentIndex).addClass('active');
-            if (singleAnnotationContainer.length) singleAnnotationContainer.hide();
-            initSimpleAnnotorious();
+
+        mainSwiperInstance = new Swiper(mainSwiperEl, {
+            loop: false,
+            initialSlide: initialSlideIndex,
+            navigation: {
+                nextEl: slideNav.querySelector('.swiper-button-next'),
+                prevEl: slideNav.querySelector('.swiper-button-prev'),
+            },
+            thumbs: {
+                swiper: thumbSwiperInstance,
+            },
+            on: {
+                slideChange: function () {
+                    currentIndex = this.activeIndex;
+                    if (currentIndexSpan) currentIndexSpan.textContent = currentIndex + 1;
+                    if (singleAnnotationContainer) singleAnnotationContainer.style.display = 'none';
+                    initSimpleAnnotorious();
+                    if (historyVisible) {
+                        clearHistorySidebar();
+                    }
+                }
+            }
         });
-        prevButton.on('click', () => slickSlider.slick('slickPrev'));
-        nextButton.on('click', () => slickSlider.slick('slickNext'));
-        strip.on('click', '.arwai-simple-thumb', function() {
-            const newIndex = $(this).data('index');
-            slickSlider.slick('slickGoTo', newIndex);
-        });
-        scrollLeftButton.on('click', function() {
-            strip.animate({ scrollLeft: '-=200' }, 300);
-        });
-        scrollRightButton.on('click', function() {
-            strip.animate({ scrollLeft: '+=200' }, 300);
-        });
-        updateArrowVisibility();
-        $(window).on('resize', updateArrowVisibility);
+
         currentIndex = initialSlideIndex;
-        currentIndexSpan.text(currentIndex + 1);
-        thumbnails.removeClass('active').eq(currentIndex).addClass('active');
+        if (currentIndexSpan) currentIndexSpan.textContent = currentIndex + 1;
         initSimpleAnnotorious();
     } else {
-        prevButton.hide();
-        nextButton.hide();
-        strip.hide();
-        scrollLeftButton.hide();
-        scrollRightButton.hide();
-        currentIndexSpan.parent().hide();
-        slideNav.hide();
+        if (slideNav) slideNav.style.display = 'none';
+        if (thumbSwiperEl) thumbSwiperEl.style.display = 'none';
+
         initSimpleAnnotorious();
     }
 
-    singleAnnotationContainer.on('click', '#arwai-close-single-annotation', function() {
-        const activeAnno = osdViewer ? osdAnno : simpleAnno;
-        if (activeAnno && typeof activeAnno.cancelSelected === 'function') {
-            activeAnno.cancelSelected();
-        }
-    });
+    if (singleAnnotationContainer) {
+        singleAnnotationContainer.addEventListener('click', function(e) {
+            if (e.target.closest('#arwai-close-single-annotation')) {
+                const activeAnno = osdViewer ? osdAnno : simpleAnno;
+                if (activeAnno && typeof activeAnno.cancelSelected === 'function') {
+                    activeAnno.cancelSelected();
+                }
+            }
+        });
+    }
 
     function handleAnnotationToggle() {
         annotationsVisible = !annotationsVisible;
@@ -940,8 +933,8 @@ jQuery(document).ready(function($) {
             let currentAttachmentId;
             if (osdViewer) {
                 currentAttachmentId = images[currentIndex].post_id;
-            } else if (mainImage && mainImage.length) {
-                currentAttachmentId = mainImage.data('attachment-id');
+            } else if (mainImage) {
+                currentAttachmentId = mainImage.getAttribute('data-attachment-id');
             }
 
             if (currentAttachmentId) {
@@ -965,68 +958,79 @@ jQuery(document).ready(function($) {
     }
 
     function updateToggleUI(isVisible) {
-        const buttons = $('#arwai-toggle-annotations, #arwai-toggle-annotations-osd');
-        buttons.each(function() {
-            const button = $(this);
-            const wrapper1 = button.closest('.arwai-simple-viewer-button-wrapper') 
-            const wrapper2 = button.closest('.arwai-osd-toolbar-button-wrapper');
-            wrapper1.find('.feather-eye').toggle(!isVisible);
-            wrapper1.find('.feather-eye-off').toggle(isVisible);
+        toggleButtons.forEach(button => {
+            const wrapper1 = button.closest('.arwai-simple-viewer-button-wrapper');
+            if (wrapper1) {
+                const eye = wrapper1.querySelector('.feather-eye');
+                const eyeOff = wrapper1.querySelector('.feather-eye-off');
+                if (eye) eye.style.display = !isVisible ? '' : 'none';
+                if (eyeOff) eyeOff.style.display = isVisible ? '' : 'none';
+            }
 
-            wrapper2.find('.feather-eye').toggle(!isVisible);
-            wrapper2.find('.feather-eye-off').toggle(isVisible);
+            const wrapper2 = button.closest('.arwai-osd-toolbar-button-wrapper');
+            if (wrapper2) {
+                const eye = wrapper2.querySelector('.feather-eye');
+                const eyeOff = wrapper2.querySelector('.feather-eye-off');
+                if (eye) eye.style.display = !isVisible ? '' : 'none';
+                if (eyeOff) eyeOff.style.display = isVisible ? '' : 'none';
+            }
+            button.setAttribute('title', isVisible ? 'Hide Annotations' : 'Show Annotations');
         });
-        buttons.attr('title', isVisible ? 'Hide Annotations' : 'Show Annotations');
     }
     
-    toggleButton.on('click', handleAnnotationToggle);
-    osdToggleButton.on('click', handleAnnotationToggle);
+    toggleButtons.forEach(btn => btn.addEventListener('click', handleAnnotationToggle));
 
-    launchOsdButton.on('click', launchOsdViewer);
-    osdCloseButton.on('click', closeOsdViewer);
+    if (launchOsdButton) launchOsdButton.addEventListener('click', launchOsdViewer);
+    if (osdCloseButton) osdCloseButton.addEventListener('click', closeOsdViewer);
 
     // --- History Sidebar Logic ---
     let activeHistoryAnnotationId = null;
 
-    historyButton.on('click', function() {
-        historyVisible = !historyVisible;
-        if (historyVisible) {
-            // Force annotations on if they are currently off
-            if (!annotationsVisible) {
-                handleAnnotationToggle();
-            }
+    if (historyButton) {
+        historyButton.addEventListener('click', function() {
+            historyVisible = !historyVisible;
+            if (historyVisible) {
+                // Force annotations on if they are currently off
+                if (!annotationsVisible) {
+                    handleAnnotationToggle();
+                }
 
-            updateSidebarPosition();
-            historySidebar.addClass('active');
+                updateSidebarPosition();
+                if (historySidebar) historySidebar.classList.add('active');
 
-            // Check if an annotation is already highlighted
-            if (highlightedAnnotation) {
-                fetchAndRenderHistory(highlightedAnnotation);
+                // Check if an annotation is already highlighted
+                if (highlightedAnnotation) {
+                    fetchAndRenderHistory(highlightedAnnotation);
+                } else {
+                    clearHistorySidebar();
+                }
             } else {
-                clearHistorySidebar();
+                if (historySidebar) historySidebar.classList.remove('active');
             }
-        } else {
-            historySidebar.removeClass('active');
-        }
-    });
+        });
+    }
 
-    historyCloseBtn.on('click', function() {
-        historyVisible = false;
-        historySidebar.removeClass('active');
-    });
+    if (historyCloseBtn) {
+        historyCloseBtn.addEventListener('click', function() {
+            historyVisible = false;
+            if (historySidebar) historySidebar.classList.remove('active');
+        });
+    }
 
     function clearHistorySidebar() {
-        historyFeedContent.html('<div style="text-align:center; color:#888; padding: 40px 20px;">Click on an annotation to view its history.</div>');
-        historySidebar.find('h4').text('Activity Timeline');
+        if (!historyFeedContent || !historySidebar) return;
+        historyFeedContent.innerHTML = '<div style="text-align:center; color:#888; padding: 40px 20px;">Click on an annotation to view its history.</div>';
+        const h4 = historySidebar.querySelector('h4');
+        if (h4) h4.textContent = 'Activity Timeline';
         activeHistoryAnnotationId = null;
     }
 
     function fetchAndRenderHistory(annotation) {
-        if (!annotation || !annotation.id) return;
+        if (!annotation || !annotation.id || !historyFeedContent) return;
         const annotationId = annotation.id;
         activeHistoryAnnotationId = annotationId;
 
-        historyFeedContent.html('<div style="text-align:center; padding: 20px;"><span data-feather="loader" style="animation: spin 1s infinite linear;"></span></div>');
+        historyFeedContent.innerHTML = '<div style="text-align:center; padding: 20px;"><span data-feather="loader" style="animation: spin 1s infinite linear;"></span></div>';
         if (typeof feather !== 'undefined') feather.replace();
 
         // Extract arwai-AnnotationID if available
@@ -1037,36 +1041,38 @@ jQuery(document).ready(function($) {
                 displayId = idBody.value;
             }
         }
-        historySidebar.find('h4').text('History: ' + displayId);
 
-        $.ajax({
-            url: ajax_url,
-            method: 'GET',
-            data: {
-                action: 'arwai_get_annotorious_history',
-                annotation_id: annotationId
-            },
-            success: function(response) {
+        if (historySidebar) {
+            const h4 = historySidebar.querySelector('h4');
+            if (h4) h4.textContent = 'History: ' + displayId;
+        }
+
+        const url = new URL(ajax_url);
+        url.searchParams.append('action', 'arwai_get_annotorious_history');
+        url.searchParams.append('annotation_id', annotationId);
+
+        fetch(url)
+            .then(res => res.json())
+            .then(response => {
                 // Ensure we are still displaying the history for the requested annotation
                 if (activeHistoryAnnotationId !== annotationId) return;
 
                 if (response.success && response.data.history) {
                     renderHistoryFeed(response.data.history);
                 } else {
-                    historyFeedContent.html('<div style="text-align:center; color:#888; padding: 20px;">Failed to load history.</div>');
+                    historyFeedContent.innerHTML = '<div style="text-align:center; color:#888; padding: 20px;">Failed to load history.</div>';
                 }
-            },
-            error: function() {
+            })
+            .catch(() => {
                 if (activeHistoryAnnotationId === annotationId) {
-                    historyFeedContent.html('<div style="text-align:center; color:#888; padding: 20px;">Error connecting to server.</div>');
+                    historyFeedContent.innerHTML = '<div style="text-align:center; color:#888; padding: 20px;">Error connecting to server.</div>';
                 }
-            }
-        });
+            });
     }
 
     function renderHistoryFeed(historyData) {
         if (!historyData || historyData.length === 0) {
-            historyFeedContent.html('<div style="text-align:center; color:#888; padding: 20px;">No activity found.</div>');
+            if (historyFeedContent) historyFeedContent.innerHTML = '<div style="text-align:center; color:#888; padding: 20px;">No activity found.</div>';
             return;
         }
 
@@ -1092,27 +1098,24 @@ jQuery(document).ready(function($) {
             `;
         });
 
-        historyFeedContent.html(html);
+        if (historyFeedContent) {
+            historyFeedContent.innerHTML = html;
 
-        // Bind click event to select annotation
-        historyFeedContent.find('.arwai-history-feed-item').on('click', function() {
-            const annoId = $(this).data('annotation-id');
-            const activeAnno = osdViewer ? osdAnno : simpleAnno;
-            if (activeAnno && annoId) {
-                if (!annotationsVisible) {
-                    handleAnnotationToggle();
-                }
-                activeAnno.selectAnnotation(annoId);
-            }
-        });
-    }
-
-    // Refresh history if sidebar is open and slide changes
-    slickSlider.on('afterChange', function(event, slick, newIndex) {
-        if (historyVisible) {
-            clearHistorySidebar();
+            // Bind click event to select annotation
+            historyFeedContent.querySelectorAll('.arwai-history-feed-item').forEach(item => {
+                item.addEventListener('click', function() {
+                    const annoId = this.getAttribute('data-annotation-id');
+                    const activeAnno = osdViewer ? osdAnno : simpleAnno;
+                    if (activeAnno && annoId) {
+                        if (!annotationsVisible) {
+                            handleAnnotationToggle();
+                        }
+                        activeAnno.selectAnnotation(annoId);
+                    }
+                });
+            });
         }
-    });
+    }
 
     if (typeof feather !== 'undefined') {
         feather.replace();
