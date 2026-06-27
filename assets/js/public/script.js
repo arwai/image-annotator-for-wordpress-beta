@@ -324,10 +324,10 @@ document.addEventListener('DOMContentLoaded', function() {
         clearTimeout(resizeTimeout);
         resizeTimeout = setTimeout(function() {
             // Check if Simple Viewer is active and notes are visible
-            if (osdModal.css('display') === 'none' && annotationsVisible && simpleAnno && mainImage) {
-                const img = mainImage[0];
+            if (osdModal && osdModal.style.display === 'none' && annotationsVisible && simpleAnno && mainImage) {
+                const img = mainImage;
                 if (img && img.clientWidth > 0) {
-                    const attachmentId = mainImage.data('attachment-id');
+                    const attachmentId = mainImage.getAttribute('data-attachment-id');
                     const cachedData = window.arwaiAnnotationCache[attachmentId];
                     if (cachedData) {
                         simpleAnno.clearAnnotations();
@@ -486,7 +486,7 @@ document.addEventListener('DOMContentLoaded', function() {
             attachmentId = currentImage.post_id;
             iiifSourceUrl = currentImage.iiif_source_url;
         } else {
-            attachmentId = mainImage.data('attachment-id');
+            attachmentId = mainImage.getAttribute('data-attachment-id');
             const currentImageData = images.find(img => img.post_id === attachmentId);
             iiifSourceUrl = currentImageData ? currentImageData.iiif_source_url : '';
         }
@@ -719,7 +719,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 attachEventHandlers(simpleAnno);
 
                 if (annotationsVisible) {
-                    const currentAttachmentId = mainImage.data('attachment-id');
+                    const currentAttachmentId = mainImage.getAttribute('data-attachment-id');
                     if (currentAttachmentId) {
                         loadAnnotations(currentAttachmentId, simpleAnno);
                     }
@@ -739,10 +739,10 @@ document.addEventListener('DOMContentLoaded', function() {
     function launchOsdViewer() {
         if (historyVisible) {
             historyVisible = false;
-            historySidebar.removeClass('active');
+            if (historySidebar) historySidebar.classList.remove('active');
         }
         annotationsVisible = true;
-        osdModal.show();
+        if (osdModal) osdModal.style.display = 'block';
         if (simpleAnno) {
             simpleAnno.destroy();
             simpleAnno = null;
@@ -840,7 +840,7 @@ document.addEventListener('DOMContentLoaded', function() {
             osdViewer.destroy();
             osdViewer = null;
         }
-        osdModal.hide();
+        if (osdModal) osdModal.style.display = 'none';
         updateView(currentIndex);
         initSimpleAnnotorious();
     }
